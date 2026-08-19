@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Clock - Multi Time Zone</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-clock"></i> Digital Clock</h1>
+                <p>Tampilkan waktu di berbagai time zone</p>
+            </div>
+        </header>
+
+        <!-- Control Panel -->
+        <section class="control-panel">
+            <div class="control-left">
+                <button id="toggleFormat" class="format-btn" title="Ganti format 12/24 jam">
+                    <i class="fas fa-repeat"></i> 12/24
+                </button>
+                <button id="toggleSeconds" class="seconds-btn" title="Tampilkan/sembunyikan detik">
+                    <i class="fas fa-hourglass-end"></i> Detik
+                </button>
+            </div>
+
+            <div class="control-right">
+                <button id="addClockBtn" class="add-clock-btn">
+                    <i class="fas fa-plus-circle"></i> Tambah Clock
+                </button>
+                <button id="resetBtn" class="reset-btn" title="Reset ke default">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+            </div>
+        </control-panel>
+
+        <!-- Main Clock (Local Time) -->
+        <section class="main-clock-section">
+            <div class="main-clock">
+                <div class="clock-face">
+                    <div class="hand hour-hand"></div>
+                    <div class="hand minute-hand"></div>
+                    <div class="hand second-hand"></div>
+                    <div class="center-dot"></div>
+                </div>
+                <div class="analog-time">
+                    <div id="analogTime" class="time-display">--:--:--</div>
+                    <p class="timezone-label">Waktu Lokal</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Digital Clocks Grid -->
+        <section class="digital-clocks-section">
+            <div id="clocksContainer" class="clocks-grid">
+                <!-- Digital clocks will be inserted here -->
+            </div>
+        </section>
+
+        <!-- Add Clock Modal -->
+        <div id="addClockModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Tambah Clock Baru</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="timezoneSelect">Pilih Time Zone:</label>
+                        <select id="timezoneSelect" class="form-select">
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="clockLabel">Label Clock (Opsional):</label>
+                        <input 
+                            type="text" 
+                            id="clockLabel" 
+                            class="form-input" 
+                            placeholder="Nama kota atau deskripsi..."
+                        >
+                    </div>
+                    <div class="timezone-info" id="timezoneInfo">
+                        <p id="infoText"></p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelAdd" class="btn-secondary">Batal</button>
+                    <button id="confirmAdd" class="btn-primary">Tambah</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Pengaturan</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-option">
+                        <label>
+                            <input type="checkbox" id="show24Hour">
+                            <span>Format 24 Jam</span>
+                        </label>
+                    </div>
+                    <div class="settings-option">
+                        <label>
+                            <input type="checkbox" id="showSeconds">
+                            <span>Tampilkan Detik</span>
+                        </label>
+                    </div>
+                    <div class="settings-option">
+                        <label>
+                            <input type="checkbox" id="showAnalog">
+                            <span>Tampilkan Jam Analog</span>
+                        </label>
+                    </div>
+                    <div class="settings-option">
+                        <label>
+                            <input type="checkbox" id="showDate">
+                            <span>Tampilkan Tanggal</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="settingsClose" class="btn-primary">Tutup</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Time Zones -->
+        <section class="quick-zones-section">
+            <h2><i class="fas fa-globe"></i> Quick Add Time Zones</h2>
+            <div class="quick-zones-grid">
+                <button class="quick-zone-btn" data-timezone="America/New_York">
+                    <span class="zone-icon">🗽</span>
+                    <span class="zone-name">New York</span>
+                    <span class="zone-offset">UTC-5</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Europe/London">
+                    <span class="zone-icon">🇬🇧</span>
+                    <span class="zone-name">London</span>
+                    <span class="zone-offset">UTC+0</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Europe/Paris">
+                    <span class="zone-icon">🇫🇷</span>
+                    <span class="zone-name">Paris</span>
+                    <span class="zone-offset">UTC+1</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Asia/Dubai">
+                    <span class="zone-icon">🕌</span>
+                    <span class="zone-name">Dubai</span>
+                    <span class="zone-offset">UTC+4</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Asia/Bangkok">
+                    <span class="zone-icon">🇹🇭</span>
+                    <span class="zone-name">Bangkok</span>
+                    <span class="zone-offset">UTC+7</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Asia/Shanghai">
+                    <span class="zone-icon">🇨🇳</span>
+                    <span class="zone-name">Shanghai</span>
+                    <span class="zone-offset">UTC+8</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Asia/Tokyo">
+                    <span class="zone-icon">🗾</span>
+                    <span class="zone-name">Tokyo</span>
+                    <span class="zone-offset">UTC+9</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Australia/Sydney">
+                    <span class="zone-icon">🦘</span>
+                    <span class="zone-name">Sydney</span>
+                    <span class="zone-offset">UTC+10</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Pacific/Auckland">
+                    <span class="zone-icon">🇳🇿</span>
+                    <span class="zone-name">Auckland</span>
+                    <span class="zone-offset">UTC+12</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Asia/Jakarta">
+                    <span class="zone-icon">🇮🇩</span>
+                    <span class="zone-name">Jakarta</span>
+                    <span class="zone-offset">UTC+7</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Asia/Singapore">
+                    <span class="zone-icon">🇸🇬</span>
+                    <span class="zone-name">Singapore</span>
+                    <span class="zone-offset">UTC+8</span>
+                </button>
+                <button class="quick-zone-btn" data-timezone="Asia/Kolkata">
+                    <span class="zone-icon">🇮🇳</span>
+                    <span class="zone-name">India</span>
+                    <span class="zone-offset">UTC+5:30</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Stats Section -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <i class="fas fa-clock"></i>
+                <div>
+                    <p class="stat-label">Total Clocks</p>
+                    <p id="totalClocks" class="stat-value">0</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-globe"></i>
+                <div>
+                    <p class="stat-label">Time Zones</p>
+                    <p id="totalTimezones" class="stat-value">0</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-sync-alt"></i>
+                <div>
+                    <p class="stat-label">UTC Offset</p>
+                    <p id="utcOffset" class="stat-value">+00:00</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Info Section -->
+        <section class="info-section">
+            <div class="info-box">
+                <h3><i class="fas fa-info-circle"></i> Informasi</h3>
+                <ul>
+                    <li>✅ Tampilkan waktu dari berbagai zona waktu</li>
+                    <li>✅ Jam analog dan digital secara bersamaan</li>
+                    <li>✅ Kontrol format 12/24 jam</li>
+                    <li>✅ Tampilkan/sembunyikan detik</li>
+                    <li>✅ Tambah/hapus clock sesuai kebutuhan</li>
+                    <li>✅ Quick add untuk zona waktu populer</li>
+                </ul>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <p>&copy; 2026 Digital Clock Multi Time Zone. Waktu diperbarui setiap detik.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
