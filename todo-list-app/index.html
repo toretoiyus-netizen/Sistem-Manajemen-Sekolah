@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List App - Aplikasi Daftar Tugas</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-check-circle"></i> My To-Do List</h1>
+                <p>Kelola tugas harian Anda dengan mudah</p>
+            </div>
+        </header>
+
+        <!-- Input Section -->
+        <section class="input-section">
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    id="taskInput" 
+                    class="task-input" 
+                    placeholder="Tambahkan tugas baru... (tekan Enter)"
+                    autocomplete="off"
+                >
+                <button id="addBtn" class="add-btn">
+                    <i class="fas fa-plus"></i> Tambah
+                </button>
+            </div>
+            <div class="category-selector">
+                <label for="categorySelect">Kategori:</label>
+                <select id="categorySelect" class="category-select">
+                    <option value="personal">📱 Personal</option>
+                    <option value="work">💼 Work</option>
+                    <option value="shopping">🛒 Shopping</option>
+                    <option value="health">🏥 Health</option>
+                    <option value="other">📋 Other</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Filter Section -->
+        <section class="filter-section">
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">
+                    <i class="fas fa-list"></i> Semua
+                </button>
+                <button class="filter-btn" data-filter="active">
+                    <i class="fas fa-circle"></i> Aktif
+                </button>
+                <button class="filter-btn" data-filter="completed">
+                    <i class="fas fa-check"></i> Selesai
+                </button>
+            </div>
+            <div class="sort-buttons">
+                <button id="sortBtn" class="sort-btn" title="Urutkan tugas">
+                    <i class="fas fa-sort"></i> Urutkan
+                </button>
+                <button id="clearCompleted" class="clear-btn" title="Hapus tugas yang selesai">
+                    <i class="fas fa-trash"></i> Hapus Selesai
+                </button>
+            </div>
+        </section>
+
+        <!-- Stats Section -->
+        <section class="stats-section">
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-tasks"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Total Tugas</span>
+                    <span id="totalTasks" class="stat-value">0</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-circle-check"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Selesai</span>
+                    <span id="completedTasks" class="stat-value">0</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-hourglass-end"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-label">Sisa Tugas</span>
+                    <span id="remainingTasks" class="stat-value">0</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Todo List -->
+        <section class="todo-section">
+            <div id="todoContainer" class="todo-container">
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>Tidak ada tugas</p>
+                    <small>Tambahkan tugas baru untuk memulai</small>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sort Modal -->
+        <div id="sortModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Urutkan Tugas</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="sort-option">
+                        <input type="radio" id="sortDate" name="sort" value="date" checked>
+                        <label for="sortDate">
+                            <i class="fas fa-calendar"></i> Berdasarkan Tanggal (Terbaru)
+                        </label>
+                    </div>
+                    <div class="sort-option">
+                        <input type="radio" id="sortPriority" name="sort" value="priority">
+                        <label for="sortPriority">
+                            <i class="fas fa-flag"></i> Berdasarkan Prioritas
+                        </label>
+                    </div>
+                    <div class="sort-option">
+                        <input type="radio" id="sortAlpha" name="sort" value="alpha">
+                        <label for="sortAlpha">
+                            <i class="fas fa-sort-alpha-down"></i> Berdasarkan Abjad (A-Z)
+                        </label>
+                    </div>
+                    <div class="sort-option">
+                        <input type="radio" id="sortCategory" name="sort" value="category">
+                        <label for="sortCategory">
+                            <i class="fas fa-tag"></i> Berdasarkan Kategori
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="sortApply" class="btn-primary">Terapkan</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div id="editModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Edit Tugas</h2>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="editTaskInput">Tugas:</label>
+                        <input type="text" id="editTaskInput" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="editPriority">Prioritas:</label>
+                        <select id="editPriority" class="form-select">
+                            <option value="low">🟢 Rendah</option>
+                            <option value="medium">🟡 Sedang</option>
+                            <option value="high">🔴 Tinggi</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editCategory">Kategori:</label>
+                        <select id="editCategory" class="form-select">
+                            <option value="personal">📱 Personal</option>
+                            <option value="work">💼 Work</option>
+                            <option value="shopping">🛒 Shopping</option>
+                            <option value="health">🏥 Health</option>
+                            <option value="other">📋 Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="editCancel" class="btn-secondary">Batal</button>
+                    <button id="editSave" class="btn-primary">Simpan</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <section class="info-section">
+            <div class="info-box">
+                <h3><i class="fas fa-info-circle"></i> Tips Produktivitas</h3>
+                <ul>
+                    <li>✅ Buat tugas yang spesifik dan terukur</li>
+                    <li>✅ Prioritaskan tugas berdasarkan kepentingan</li>
+                    <li>✅ Kelompokkan tugas berdasarkan kategori</li>
+                    <li>✅ Tandai tugas selesai untuk motivasi</li>
+                    <li>✅ Semua data disimpan otomatis di perangkat Anda</li>
+                </ul>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <p>&copy; 2026 To-Do List App. Semua data disimpan secara lokal di perangkat Anda.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
