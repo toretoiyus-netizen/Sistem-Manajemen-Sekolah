@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Manajemen Sekolah Jawa Barat",
+  "description": "Sistem Manajemen Sekolah Jawa Barat (SMS JABAR) berbasis Google Apps Script, Google Spreadsheet & Drive dengan 7 role, CAT asesmen ujian ber-token, presensi GPS/Selfie/QR, KBM, dan AI Assistant.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
