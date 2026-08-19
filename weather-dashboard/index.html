@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Dashboard - Aplikasi Cuaca</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-cloud-sun"></i> Weather Dashboard</h1>
+                <p>Informasi cuaca real-time di seluruh dunia</p>
+            </div>
+        </header>
+
+        <!-- Search Section -->
+        <section class="search-section">
+            <div class="search-container">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-input" 
+                    placeholder="Cari kota... (misal: Jakarta, Tokyo, New York)"
+                    autocomplete="off"
+                >
+                <button id="searchBtn" class="search-btn">
+                    <i class="fas fa-search"></i> Cari
+                </button>
+                <button id="geoLocationBtn" class="geo-btn" title="Gunakan lokasi saat ini">
+                    <i class="fas fa-location-dot"></i> Lokasi Saya
+                </button>
+            </div>
+            <div id="searchSuggestions" class="search-suggestions"></div>
+        </section>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="loading-spinner hidden">
+            <div class="spinner"></div>
+            <p>Mengambil data cuaca...</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message hidden"></div>
+
+        <!-- Current Weather Section -->
+        <section id="currentWeatherSection" class="current-weather-section hidden">
+            <div class="current-weather-card">
+                <div class="city-info">
+                    <h2 id="cityName">-</h2>
+                    <p id="weatherDescription">-</p>
+                    <p id="lastUpdated" class="last-updated">-</p>
+                </div>
+                <div class="weather-main">
+                    <div class="temperature-display">
+                        <span id="currentTemp" class="temperature">--°C</span>
+                        <div id="weatherIcon" class="weather-icon">
+                            <i class="fas fa-cloud"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="weather-details-grid">
+                    <div class="weather-detail">
+                        <div class="detail-icon">
+                            <i class="fas fa-droplet"></i>
+                        </div>
+                        <div class="detail-info">
+                            <span class="detail-label">Kelembaban</span>
+                            <span id="humidity" class="detail-value">--%</span>
+                        </div>
+                    </div>
+                    <div class="weather-detail">
+                        <div class="detail-icon">
+                            <i class="fas fa-wind"></i>
+                        </div>
+                        <div class="detail-info">
+                            <span class="detail-label">Kecepatan Angin</span>
+                            <span id="windSpeed" class="detail-value">-- m/s</span>
+                        </div>
+                    </div>
+                    <div class="weather-detail">
+                        <div class="detail-icon">
+                            <i class="fas fa-gauge"></i>
+                        </div>
+                        <div class="detail-info">
+                            <span class="detail-label">Tekanan</span>
+                            <span id="pressure" class="detail-value">-- hPa</span>
+                        </div>
+                    </div>
+                    <div class="weather-detail">
+                        <div class="detail-icon">
+                            <i class="fas fa-eye"></i>
+                        </div>
+                        <div class="detail-info">
+                            <span class="detail-label">Visibilitas</span>
+                            <span id="visibility" class="detail-value">-- km</span>
+                        </div>
+                    </div>
+                    <div class="weather-detail">
+                        <div class="detail-icon">
+                            <i class="fas fa-temperature-high"></i>
+                        </div>
+                        <div class="detail-info">
+                            <span class="detail-label">Terasa Seperti</span>
+                            <span id="feelsLike" class="detail-value">--°C</span>
+                        </div>
+                    </div>
+                    <div class="weather-detail">
+                        <div class="detail-icon">
+                            <i class="fas fa-cloud-rain"></i>
+                        </div>
+                        <div class="detail-info">
+                            <span class="detail-label">Kemungkinan Hujan</span>
+                            <span id="rainChance" class="detail-value">--%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7-Day Forecast Section -->
+        <section id="forecastSection" class="forecast-section hidden">
+            <h2 class="forecast-title">
+                <i class="fas fa-calendar-days"></i> Prakiraan 7 Hari
+            </h2>
+            <div id="forecastContainer" class="forecast-container">
+                <!-- Forecast cards akan ditambahkan dengan JavaScript -->
+            </div>
+        </section>
+
+        <!-- Info Section -->
+        <section class="info-section">
+            <div class="info-box">
+                <h3><i class="fas fa-info-circle"></i> Tentang Dashboard Ini</h3>
+                <p>
+                    Weather Dashboard adalah aplikasi web yang menampilkan informasi cuaca real-time 
+                    menggunakan Open-Meteo API. Data diperbarui secara otomatis setiap kali Anda mencari 
+                    lokasi atau menggunakan fitur geolocation.
+                </p>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <p>&copy; 2026 Weather Dashboard. Menggunakan data dari Open-Meteo API.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
