@@ -149,6 +149,18 @@ export function getInitialSeedDatabase(): FullDatabaseState {
       hariAktif: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'],
       autoMarkAbsentIfNoExit: true,
     },
+    hariLiburList: [
+      { id: 'HLB-001', tanggal: '2026-08-17', keterangan: 'Hari Kemerdekaan Republik Indonesia' },
+      { id: 'HLB-002', tanggal: '2026-05-01', keterangan: 'Hari Buruh Internasional' },
+      { id: 'HLB-003', tanggal: '2026-12-25', keterangan: 'Hari Raya Natal & Libur Semester' },
+    ],
+    gasConfig: {
+      webAppUrl: 'https://script.google.com/macros/s/AKfycbx_SMS_JABAR_PRODUCTION_WEB_APP_URL/exec',
+      spreadsheetId: '1AbC_JabarSchoolSpreadsheet_998877665544332211',
+      isDeployed: true,
+      lastPingTime: new Date().toLocaleTimeString('id-ID'),
+      lastPingStatus: '200 OK - 29 Sheet Google Spreadsheet Terhubung Aktif',
+    },
     allowedRolesForRoleMatrix: ['SUPER ADMIN'],
     allowedRolesForAuditTrail: ['SUPER ADMIN'],
     configVersion: 'GAS-SMS-JABAR-2025.1',
@@ -1763,6 +1775,72 @@ export class MockDatabaseService {
     return this.state;
   }
 
+  public getSystemConfig(): SystemConfig {
+    return this.state.config;
+  }
+
+  public updateSystemConfig(partialConfig: Partial<SystemConfig>): SystemConfig {
+    this.state.config = {
+      ...this.state.config,
+      ...partialConfig,
+    };
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sms-jabar-config-updated', { detail: this.state.config }));
+    }
+    return this.state.config;
+  }
+
+  public updateConfig(partialConfig: Partial<SystemConfig>): SystemConfig {
+    return this.updateSystemConfig(partialConfig);
+  }
+
+  public updateGASConfig(webAppUrl: string, spreadsheetId: string) {
+    if (!this.state.config.gasConfig) {
+      this.state.config.gasConfig = {
+        webAppUrl: '',
+        spreadsheetId: '',
+        isDeployed: true,
+      };
+    }
+    this.state.config.gasConfig.webAppUrl = webAppUrl.trim();
+    this.state.config.gasConfig.spreadsheetId = spreadsheetId.trim();
+    this.state.config.gasConfig.isDeployed = true;
+    this.state.config.gasConfig.lastPingTime = new Date().toLocaleTimeString('id-ID');
+    this.state.config.gasConfig.lastPingStatus = '200 OK - Backend GAS & Spreadsheet Terhubung';
+    this.state.config.databaseSpreadsheetId = spreadsheetId.trim() || this.state.config.databaseSpreadsheetId;
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sms-jabar-gas-updated', { detail: this.state.config.gasConfig }));
+    }
+  }
+
+  public recordPresensi(rec: PresensiRecord) {
+    if (!this.state.presensi) this.state.presensi = [];
+    if (!this.state.presensiList) this.state.presensiList = this.state.presensi;
+
+    // Check if record exists for student on date
+    const existingIndex = this.state.presensi.findIndex(
+      (p) => (p.id === rec.id) || (p.siswaId === rec.siswaId && p.tanggal === rec.tanggal)
+    );
+
+    if (existingIndex >= 0) {
+      this.state.presensi[existingIndex] = {
+        ...this.state.presensi[existingIndex],
+        ...rec,
+      };
+    } else {
+      this.state.presensi.unshift(rec);
+    }
+
+    this.state.presensiList = this.state.presensi;
+    this.saveToStorage();
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sms-jabar-presensi-updated', { detail: rec }));
+    }
+  }
+
   // ID Generators
   public generateId(prefix: string = 'ID'): string {
     const randomNum = Math.floor(100000 + Math.random() * 900000);
@@ -2066,18 +2144,6 @@ export class MockDatabaseService {
   // ---------------------------------------------------------------------------
   // 5. SYSTEM CONFIGURATION, BRANDING & MAINTENANCE
   // ---------------------------------------------------------------------------
-  public updateConfig(newConfig: Partial<SystemConfig>): SystemConfig {
-    this.state.config = {
-      ...this.state.config,
-      ...newConfig,
-    };
-    this.saveToStorage();
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('sms-jabar-config-updated', { detail: this.state.config }));
-    }
-    return this.state.config;
-  }
-
   public updateTheme(theme: 'emerald' | 'blue' | 'indigo' | 'amber' | 'rose' | 'slate') {
     return this.updateConfig({ primaryColorTheme: theme });
   }

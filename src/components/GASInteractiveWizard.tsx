@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ALL_GAS_FILES } from '../services/gasCodeGenerator';
 import { useToast } from './Toast';
+import { dbService } from '../services/mockDatabase';
 
 interface GASInteractiveWizardProps {
   onSelectFileToView: (fileName: string) => void;
@@ -39,7 +40,11 @@ export const GASInteractiveWizard: React.FC<GASInteractiveWizardProps> = ({
 }) => {
   const { success, info } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
-  const [spreadsheetId, setSpreadsheetId] = useState('');
+
+  const initialCfg = dbService.getSystemConfig();
+  const [spreadsheetId, setSpreadsheetId] = useState(
+    initialCfg.gasConfig?.spreadsheetId || initialCfg.databaseSpreadsheetId || '1AbC_JabarSchoolSpreadsheet_998877665544332211'
+  );
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
 
   // Checklists for Step 2

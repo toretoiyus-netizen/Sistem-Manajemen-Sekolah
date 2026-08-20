@@ -79,6 +79,9 @@ export const ManajemenAkun: React.FC<ManajemenAkunProps> = ({ currentUser }) => 
   const myStudentNisns = db.siswa
     .filter((s) => s.waliKelasId === currentTeacher?.id || s.rombel === myWaliRombel)
     .map((s) => s.nisn);
+  const myStudentNames = db.siswa
+    .filter((s) => s.waliKelasId === currentTeacher?.id || s.rombel === myWaliRombel)
+    .map((s) => s.namaLengkap.toLowerCase());
 
   const myBinaanIds = db.siswa
     .filter((s) => s.guruWaliId === currentTeacher?.id)
@@ -86,6 +89,9 @@ export const ManajemenAkun: React.FC<ManajemenAkunProps> = ({ currentUser }) => 
   const myBinaanNisns = db.siswa
     .filter((s) => s.guruWaliId === currentTeacher?.id)
     .map((s) => s.nisn);
+  const myBinaanNames = db.siswa
+    .filter((s) => s.guruWaliId === currentTeacher?.id)
+    .map((s) => s.namaLengkap.toLowerCase());
 
   // Fallback if current active tab is restricted
   React.useEffect(() => {
@@ -103,7 +109,9 @@ export const ManajemenAkun: React.FC<ManajemenAkunProps> = ({ currentUser }) => 
     if (currentUser.role === 'WALI KELAS') {
       const isMyStudent =
         u.role === 'SISWA' &&
-        (myStudentIds.includes(u.referenceId || '') || myStudentNisns.includes(u.username));
+        (myStudentIds.includes(u.referenceId || '') ||
+          myStudentNisns.includes(u.username) ||
+          myStudentNames.includes(u.nama.toLowerCase()));
       const isMyOwnAccount = u.id === currentUser.id;
       if (!isMyStudent && !isMyOwnAccount) return false;
     }
@@ -111,7 +119,9 @@ export const ManajemenAkun: React.FC<ManajemenAkunProps> = ({ currentUser }) => 
     else if (currentUser.role === 'GURU WALI') {
       const isMyBinaan =
         u.role === 'SISWA' &&
-        (myBinaanIds.includes(u.referenceId || '') || myBinaanNisns.includes(u.username));
+        (myBinaanIds.includes(u.referenceId || '') ||
+          myBinaanNisns.includes(u.username) ||
+          myBinaanNames.includes(u.nama.toLowerCase()));
       const isMyOwnAccount = u.id === currentUser.id;
       if (!isMyBinaan && !isMyOwnAccount) return false;
     }

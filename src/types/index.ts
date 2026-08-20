@@ -49,7 +49,9 @@ export type PresensiMethod =
   | 'GPS'
   | 'QR Code'
   | 'Mandiri Siswa (GPS & Selfie)'
-  | 'Presensi Mandiri Siswa (GPS & Selfie)';
+  | 'Presensi Mandiri Siswa (GPS & Selfie)'
+  | 'Mandiri Siswa (Masuk)'
+  | 'Mandiri Siswa (Pulang)';
 
 export type PresensiStatus = 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | 'Alpa';
 
@@ -304,6 +306,8 @@ export interface PresensiRecord {
   statusMasuk?: 'Tepat Waktu' | 'Terlambat';
   statusPulang?: 'Sudah Pulang' | 'Belum Pulang' | 'Tidak Absen Pulang';
   waktuPresensi?: string;
+  waktuPresensiMasuk?: string;
+  waktuPresensiPulang?: string;
   mapelId?: string;
   guruId?: string;
   lokasi?: {
@@ -427,6 +431,18 @@ export interface SystemConfig {
     jamPulangSelesai: string; // e.g. "18:00"
     hariAktif: string[]; // e.g. ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
     autoMarkAbsentIfNoExit: boolean; // Jika tidak absen pulang otomatis dianggap tidak hadir / alpa
+  };
+  hariLiburList?: Array<{
+    id: string;
+    tanggal: string; // YYYY-MM-DD
+    keterangan: string;
+  }>;
+  gasConfig?: {
+    webAppUrl: string;
+    spreadsheetId: string;
+    isDeployed: boolean;
+    lastPingTime?: string;
+    lastPingStatus?: string;
   };
   allowedRolesForRoleMatrix?: UserRole[];
   allowedRolesForAuditTrail?: UserRole[];

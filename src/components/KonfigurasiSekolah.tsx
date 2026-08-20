@@ -20,6 +20,10 @@ import {
   Compass,
   Navigation,
   LocateFixed,
+  Clock,
+  Calendar,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { SystemConfig, UserAccount } from '../types';
 import { dbService } from '../services/mockDatabase';
@@ -34,7 +38,7 @@ export const KonfigurasiSekolah: React.FC<KonfigurasiSekolahProps> = ({ currentU
   const { showToast } = useToast();
   const db = dbService.getState();
 
-  const [activeTab, setActiveTab] = useState<'identitas' | 'lokasi' | 'logo' | 'tema' | 'maintenance' | 'notifikasi'>('identitas');
+  const [activeTab, setActiveTab] = useState<'identitas' | 'lokasi' | 'jadwal_presensi' | 'logo' | 'tema' | 'maintenance' | 'notifikasi'>('identitas');
 
   // Form State
   const [namaSekolah, setNamaSekolah] = useState(db.config.namaSekolah || 'SMAN 1 KOTA BANDUNG - JAWA BARAT');
@@ -48,6 +52,34 @@ export const KonfigurasiSekolah: React.FC<KonfigurasiSekolahProps> = ({ currentU
   const [primaryTheme, setPrimaryTheme] = useState<'emerald' | 'blue' | 'indigo' | 'amber' | 'rose' | 'slate'>(
     db.config.primaryColorTheme || 'emerald'
   );
+
+  // Jadwal Presensi & Hari Libur State
+  const jdw = db.config.jadwalPresensi || {
+    jamMasukMulai: '06:00',
+    jamMasukSelesai: '07:15',
+    jamMasukToleransi: '07:30',
+    jamPulangMulai: '14:00',
+    jamPulangSelesai: '18:00',
+    hariAktif: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'],
+    autoMarkAbsentIfNoExit: true,
+  };
+
+  const [jamMasukMulai, setJamMasukMulai] = useState(jdw.jamMasukMulai);
+  const [jamMasukSelesai, setJamMasukSelesai] = useState(jdw.jamMasukSelesai);
+  const [jamMasukToleransi, setJamMasukToleransi] = useState(jdw.jamMasukToleransi);
+  const [jamPulangMulai, setJamPulangMulai] = useState(jdw.jamPulangMulai);
+  const [jamPulangSelesai, setJamPulangSelesai] = useState(jdw.jamPulangSelesai);
+  const [hariAktif, setHariAktif] = useState<string[]>(jdw.hariAktif || ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']);
+  const [hariLiburList, setHariLiburList] = useState<Array<{ id: string; tanggal: string; keterangan: string }>>(
+    db.config.hariLiburList || [
+      { id: 'HLB-001', tanggal: '2026-08-17', keterangan: 'Hari Kemerdekaan Republik Indonesia' },
+      { id: 'HLB-002', tanggal: '2026-05-01', keterangan: 'Hari Buruh Internasional' },
+      { id: 'HLB-003', tanggal: '2026-12-25', keterangan: 'Hari Raya Natal & Libur Semester' },
+    ]
+  );
+
+  const [newLiburTanggal, setNewLiburTanggal] = useState('');
+  const [newLiburKet, setNewLiburKet] = useState('');
 
   // GPS Coordinates & Presensi Geofencing State (Super Admin Controlled)
   const [gpsLat, setGpsLat] = useState<number>(db.config.koordinatSekolah?.lat ?? -6.8905);
@@ -164,6 +196,16 @@ export const KonfigurasiSekolah: React.FC<KonfigurasiSekolahProps> = ({ currentU
         lng: Number(gpsLng) || 107.6167,
         radiusMeters: Number(gpsRadius) || 250,
       },
+      jadwalPresensi: {
+        jamMasukMulai,
+        jamMasukSelesai,
+        jamMasukToleransi,
+        jamPulangMulai,
+        jamPulangSelesai,
+        hariAktif,
+        autoMarkAbsentIfNoExit: true,
+      },
+      hariLiburList,
       maintenanceMode: {
         isEnabled: isMaintenance,
         message: maintenanceMsg,
@@ -286,6 +328,21 @@ export const KonfigurasiSekolah: React.FC<KonfigurasiSekolahProps> = ({ currentU
           <span>Titik Koordinat & Radius GPS Presensi</span>
           <span className="text-[10px] bg-emerald-100 text-emerald-800 font-mono px-1.5 py-0.2 rounded-md">
             Geofence
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('jadwal_presensi')}
+          className={`py-3.5 px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'jadwal_presensi'
+              ? 'border-emerald-600 text-emerald-800 font-bold bg-white rounded-t-xl'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Clock className="w-4 h-4 text-emerald-600" />
+          <span>Pengaturan Jam & Hari Libur Presensi</span>
+          <span className="text-[10px] bg-blue-100 text-blue-800 font-mono px-1.5 py-0.2 rounded-md">
+            Wajib Absen
           </span>
         </button>
 
@@ -605,6 +662,222 @@ export const KonfigurasiSekolah: React.FC<KonfigurasiSekolahProps> = ({ currentU
                   <div className="text-xs font-bold text-slate-800">Disdik Jabar Radjiman</div>
                   <div className="text-[10px] text-slate-500 font-mono mt-0.5">-6.914700, 107.609800 (300m)</div>
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: JADWAL & HARI LIBUR PRESENSI */}
+        {activeTab === 'jadwal_presensi' && (
+          <div className="space-y-6 max-w-4xl">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-emerald-600" />
+                <span>Pengaturan Jam & Hari Libur Presensi Siswa</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Atur rentang jam absen masuk, jam absen pulang, hari aktif sekolah, serta kalender libur nasional/sekolah.
+              </p>
+            </div>
+
+            {/* Config Card: Jam Presensi */}
+            <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                <span>1. Batas Jam Presensi Masuk & Pulang</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Jam Masuk */}
+                <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-3">
+                  <div className="font-bold text-xs text-emerald-950 flex items-center justify-between">
+                    <span>Absen Masuk (Pagi)</span>
+                    <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-mono">Wajib Absen 1</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-600">Jam Mulai</label>
+                      <input
+                        type="time"
+                        value={jamMasukMulai}
+                        onChange={(e) => setJamMasukMulai(e.target.value)}
+                        className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-600">Jam Selesai</label>
+                      <input
+                        type="time"
+                        value={jamMasukSelesai}
+                        onChange={(e) => setJamMasukSelesai(e.target.value)}
+                        className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-600">Batas Toleransi</label>
+                      <input
+                        type="time"
+                        value={jamMasukToleransi}
+                        onChange={(e) => setJamMasukToleransi(e.target.value)}
+                        className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-emerald-900/80 leading-relaxed">
+                    *Siswa yang absen setelah <strong>{jamMasukSelesai}</strong> hingga <strong>{jamMasukToleransi}</strong> akan dicatat status <strong>TERLAMBAT</strong>.
+                  </p>
+                </div>
+
+                {/* Jam Pulang */}
+                <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200 space-y-3">
+                  <div className="font-bold text-xs text-blue-950 flex items-center justify-between">
+                    <span>Absen Pulang (Sore)</span>
+                    <span className="text-[10px] bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-mono">Wajib Absen 2</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-600">Jam Mulai Pulang</label>
+                      <input
+                        type="time"
+                        value={jamPulangMulai}
+                        onChange={(e) => setJamPulangMulai(e.target.value)}
+                        className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-600">Jam Batas Akhir</label>
+                      <input
+                        type="time"
+                        value={jamPulangSelesai}
+                        onChange={(e) => setJamPulangSelesai(e.target.value)}
+                        className="w-full mt-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-blue-900/80 leading-relaxed">
+                    *Siswa diwajibkan melakukan Absen Pulang dari jam <strong>{jamPulangMulai}</strong> sampai <strong>{jamPulangSelesai}</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Config Card: Hari Aktif */}
+            <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-emerald-600" />
+                <span>2. Hari Aktif Presensi (Senin - Minggu)</span>
+              </h4>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((hari) => {
+                  const isChecked = hariAktif.includes(hari);
+                  return (
+                    <button
+                      key={hari}
+                      type="button"
+                      onClick={() => {
+                        if (isChecked) {
+                          setHariAktif(hariAktif.filter((h) => h !== hari));
+                        } else {
+                          setHariAktif([...hariAktif, hari]);
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                        isChecked
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {isChecked ? <CheckCircle2 className="w-3.5 h-3.5 text-white" /> : null}
+                      <span>{hari}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Config Card: Daftar Hari Libur */}
+            <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-rose-600" />
+                    <span>3. Kalender Hari Libur Sekolah / Nasional</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Siswa tidak dapat presensi pada tanggal yang terdaftar sebagai hari libur.
+                  </p>
+                </div>
+              </div>
+
+              {/* Form Tambah Libur */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center gap-2">
+                <input
+                  type="date"
+                  value={newLiburTanggal}
+                  onChange={(e) => setNewLiburTanggal(e.target.value)}
+                  className="w-full sm:w-auto px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                />
+                <input
+                  type="text"
+                  placeholder="Keterangan (misal: Hari Raya Idul Fitri / Libur Semester)"
+                  value={newLiburKet}
+                  onChange={(e) => setNewLiburKet(e.target.value)}
+                  className="w-full flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newLiburTanggal || !newLiburKet.trim()) {
+                      showToast('Isi tanggal dan keterangan hari libur!', 'error');
+                      return;
+                    }
+                    const newEntry = {
+                      id: `HLB-${Date.now()}`,
+                      tanggal: newLiburTanggal,
+                      keterangan: newLiburKet.trim(),
+                    };
+                    setHariLiburList([...hariLiburList, newEntry]);
+                    setNewLiburTanggal('');
+                    setNewLiburKet('');
+                    showToast('Hari libur berhasil ditambahkan to daftar.', 'success');
+                  }}
+                  className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Libur</span>
+                </button>
+              </div>
+
+              {/* List Hari Libur */}
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {hariLiburList.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-4">Belum ada hari libur khusus terdaftar.</p>
+                ) : (
+                  hariLiburList.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:border-slate-300 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono font-bold bg-rose-50 text-rose-700 px-2.5 py-1 rounded-lg border border-rose-200">
+                          {item.tanggal}
+                        </span>
+                        <span className="font-semibold text-slate-800">{item.keterangan}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHariLiburList(hariLiburList.filter((h) => h.id !== item.id));
+                          showToast('Hari libur dihapus.', 'info');
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

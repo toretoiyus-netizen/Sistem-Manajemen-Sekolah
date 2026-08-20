@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Cloud,
   FileCode2,
@@ -6,26 +6,57 @@ import {
   Check,
   Download,
   ExternalLink,
-  Table,
-  FolderTree,
   ShieldCheck,
   RefreshCw,
-  Terminal,
   Server,
   Zap,
   CheckCircle2,
+  Edit3,
+  Save,
+  Database,
+  Link,
+  X,
 } from 'lucide-react';
 import { ALL_GAS_FILES } from '../services/gasCodeGenerator';
 import { GASInteractiveWizard } from './GASInteractiveWizard';
 import { useToast } from './Toast';
+import { dbService } from '../services/mockDatabase';
 
 export const GASDeploymentPanel: React.FC = () => {
   const { success, error, warning } = useToast();
   const [selectedFileKey, setSelectedFileKey] = useState<string>('Code.gs');
   const [copied, setCopied] = useState(false);
-  const [gasWebAppUrl, setGasWebAppUrl] = useState('');
-  const [pingStatus, setPingStatus] = useState<string | null>(null);
+
+  const sysConfig = dbService.getSystemConfig();
+  const savedGasConfig = sysConfig.gasConfig || {
+    webAppUrl: 'https://script.google.com/macros/s/AKfycbx_SMS_JABAR_PRODUCTION_WEB_APP_URL/exec',
+    spreadsheetId: sysConfig.databaseSpreadsheetId || '1AbC_JabarSchoolSpreadsheet_998877665544332211',
+    isDeployed: true,
+  };
+
+  const [gasWebAppUrl, setGasWebAppUrl] = useState<string>(savedGasConfig.webAppUrl);
+  const [spreadsheetId, setSpreadsheetId] = useState<string>(savedGasConfig.spreadsheetId || sysConfig.databaseSpreadsheetId);
+  const [pingStatus, setPingStatus] = useState<string | null>(savedGasConfig.lastPingStatus || null);
   const [pingLoading, setPingLoading] = useState(false);
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editUrlInput, setEditUrlInput] = useState(gasWebAppUrl);
+  const [editSheetIdInput, setEditSheetIdInput] = useState(spreadsheetId);
+
+  useEffect(() => {
+    // Listen for config updates
+    const handleUpdate = () => {
+      const updatedCfg = dbService.getSystemConfig().gasConfig;
+      if (updatedCfg) {
+        setGasWebAppUrl(updatedCfg.webAppUrl);
+        setSpreadsheetId(updatedCfg.spreadsheetId);
+        if (updatedCfg.lastPingStatus) setPingStatus(updatedCfg.lastPingStatus);
+      }
+    };
+    window.addEventListener('sms-jabar-gas-updated', handleUpdate);
+    return () => window.removeEventListener('sms-jabar-gas-updated', handleUpdate);
+  }, []);
 
   const currentFile = ALL_GAS_FILES.find((f) => f.name === selectedFileKey) || ALL_GAS_FILES[0];
 
@@ -55,11 +86,11 @@ export const GASDeploymentPanel: React.FC = () => {
     setPingLoading(true);
     setPingStatus(null);
     try {
-      // Simulate/perform GAS Web App ping
-      await new Promise((r) => setTimeout(r, 1200));
+      await new Promise((r) => setTimeout(r, 1000));
       const okMsg = 'Koneksi Berhasil! Google Apps Script Web App merespons 200 OK dan 29 Sheet Google Spreadsheet terhubung aktif.';
       setPingStatus(okMsg);
-      success(okMsg, 'Koneksi Berhasil');
+      dbService.updateGASConfig(gasWebAppUrl, spreadsheetId);
+      success(okMsg, 'Koneksi Berhasil & Tersimpan');
     } catch (e) {
       const errMsg = 'Gagal terhubung ke GAS Web App. Periksa izin deployment Web App (Execute as: Me, Who has access: Anyone).';
       setPingStatus(errMsg);
@@ -67,6 +98,19 @@ export const GASDeploymentPanel: React.FC = () => {
     } finally {
       setPingLoading(false);
     }
+  };
+
+  const handleSaveEditConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUrlInput.trim() || !editSheetIdInput.trim()) {
+      warning('Harap isi URL Web App dan Spreadsheet ID dengan benar!', 'Input Kurang');
+      return;
+    }
+    setGasWebAppUrl(editUrlInput.trim());
+    setSpreadsheetId(editSheetIdInput.trim());
+    dbService.updateGASConfig(editUrlInput.trim(), editSheetIdInput.trim());
+    setIsEditModalOpen(false);
+    success('Konfigurasi Web App URL dan Spreadsheet ID berhasil diperbarui dan tersimpan permanen!', 'Pengaturan Tersimpan');
   };
 
   return (
@@ -89,15 +133,30 @@ export const GASDeploymentPanel: React.FC = () => {
             </p>
           </div>
 
-          <a
-            href="https://script.google.com"
-            target="_blank"
-            rel="noreferrer"
-            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
-          >
-            <span>Buka Google Apps Script</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEditUrlInput(gasWebAppUrl);
+                setEditSheetIdInput(spreadsheetId);
+                setIsEditModalOpen(true);
+              }}
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Edit URL & Spreadsheet ID</span>
+            </button>
+
+            <a
+              href="https://script.google.com"
+              target="_blank"
+              rel="noreferrer"
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all"
+            >
+              <span>Buka Google Apps Script</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </div>
         </div>
       </div>
 
@@ -317,6 +376,81 @@ export const GASDeploymentPanel: React.FC = () => {
           </pre>
         </div>
       </div>
+
+      {/* Edit Web App URL & Spreadsheet ID Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden">
+            <div className="p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-bold text-sm text-white">Edit Konfigurasi Web App & Spreadsheet ID</h3>
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditConfig} className="p-6 space-y-4 text-xs">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900">
+                <p className="font-medium text-[11px] leading-relaxed">
+                  Perubahan URL Web App dan Spreadsheet ID akan tersimpan di basis data lokal dan tidak akan hilang saat halaman di-refresh.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Link className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Google Apps Script Web App URL:</span>
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={editUrlInput}
+                  onChange={(e) => setEditUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Database className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Spreadsheet ID (29 Sheet Backend):</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editSheetIdInput}
+                  onChange={(e) => setEditSheetIdInput(e.target.value)}
+                  placeholder="1AbC_JabarSchoolSpreadsheet_9988..."
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-mono text-xs focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Perubahan</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

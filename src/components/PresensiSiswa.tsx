@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   CalendarCheck2,
+  Calendar,
   QrCode,
   Users,
   Download,
@@ -292,6 +293,7 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
   // =========================================================================
   // 3. STUDENT PRESENSI MANDIRI & USULAN IZIN/SAKIT WORKFLOW
   // =========================================================================
+  const [jenisPresensi, setJenisPresensi] = useState<'Masuk' | 'Pulang'>('Masuk');
   const [studentSelfStatus, setStudentSelfStatus] = useState<'Hadir' | 'Sakit' | 'Izin'>('Hadir');
   const [studentSelfNotes, setStudentSelfNotes] = useState('');
   const [studentIzinStartDate, setStudentIzinStartDate] = useState(selectedDate);
@@ -301,6 +303,11 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
   const [studentFeedbackMsg, setStudentFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
+
+  // Modals for GPS Violation and Holiday Blocking
+  const [showGpsModal, setShowGpsModal] = useState(false);
+  const [showHolidayModal, setShowHolidayModal] = useState(false);
+  const [holidayReason, setHolidayReason] = useState('');
 
   // Student-Only presensi records
   const myPresensiList = currentStudent
@@ -335,13 +342,32 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
     e.preventDefault();
     if (!currentStudent) return;
 
+    // 1. Check Holiday & Non-Active Day Configuration
+    const sysCfg = dbService.getSystemConfig();
+    const hariLiburList = sysCfg.hariLiburList || [];
+    const isHoliday = hariLiburList.some((h) => h.tanggal === selectedDate);
+
+    const dateParts = selectedDate.split('-');
+    const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+    const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const dayName = dayNames[dateObj.getDay()];
+    const hariAktif = sysCfg.jadwalPresensi?.hariAktif || ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
+    const isNonActiveDay = !hariAktif.includes(dayName);
+
+    if (isHoliday || isNonActiveDay) {
+      const liburObj = hariLiburList.find((h) => h.tanggal === selectedDate);
+      const reason = isHoliday
+        ? `Hari Libur Sekolah: ${liburObj?.keterangan || 'Libur Nasional / Khusus'}`
+        : `Hari ${dayName} Bukan Merupakan Hari Aktif Presensi Sekolah.`;
+      setHolidayReason(reason);
+      setShowHolidayModal(true);
+      return;
+    }
+
     // IF STATUS IS 'HADIR' -> STRICT GPS & SELFIE CHECK
     if (studentSelfStatus === 'Hadir') {
       if (!studentGps.isWithinRadius) {
-        setStudentFeedbackMsg({
-          type: 'error',
-          text: `Presensi Ditolak! Anda terdeteksi berada di luar radius koordinat sekolah (Jarak: ${studentGps.distance}m, Batas Maksimal: ${schoolCoordinates.radiusMeters}m). Pastikan Anda berada di area kampus sekolah.`,
-        });
+        setShowGpsModal(true);
         return;
       }
 
@@ -353,6 +379,7 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
         return;
       }
 
+      const timeNow = new Date().toLocaleTimeString('id-ID');
       const newRec: PresensiRecord = {
         id: dbService.generateId('PRS'),
         tanggal: selectedDate,
@@ -364,9 +391,13 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
         mapelId: 'MAP-UMUM',
         guruId: currentStudent.waliKelasId || 'GURU-000003',
         status: 'Hadir',
-        keterangan: studentSelfNotes || 'Presensi Mandiri Siswa (Validasi GPS & Verifikasi Swafoto Wajah)',
-        metode: 'Mandiri Siswa (GPS & Selfie)',
-        waktuPresensi: new Date().toLocaleTimeString('id-ID'),
+        keterangan: studentSelfNotes || `Presensi ${jenisPresensi} Mandiri Siswa (Validasi GPS & Verifikasi Swafoto)`,
+        metode: jenisPresensi === 'Masuk' ? 'Mandiri Siswa (Masuk)' : 'Mandiri Siswa (Pulang)',
+        waktuPresensi: timeNow,
+        jamMasuk: jenisPresensi === 'Masuk' ? timeNow : undefined,
+        jamPulang: jenisPresensi === 'Pulang' ? timeNow : undefined,
+        waktuPresensiMasuk: jenisPresensi === 'Masuk' ? timeNow : undefined,
+        waktuPresensiPulang: jenisPresensi === 'Pulang' ? timeNow : undefined,
         lokasi: {
           latitude: studentGps.lat,
           longitude: studentGps.lng,
@@ -377,13 +408,12 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
         fotoSelfie: capturedSelfie,
       };
 
-      db.presensi.unshift(newRec);
-      dbService.saveToStorage(db);
+      dbService.recordPresensi(newRec);
       playBeepSound(1046, 0.15);
 
       setStudentFeedbackMsg({
         type: 'success',
-        text: `Presensi Hadir Mandiri Anda pada tanggal ${selectedDate} berhasil diverifikasi dan tersimpan!`,
+        text: `Presensi ${jenisPresensi} Mandiri Anda pada tanggal ${selectedDate} (${timeNow}) berhasil diverifikasi dan tersimpan!`,
       });
 
       setTimeout(() => {
@@ -989,6 +1019,44 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
                   </button>
                 </div>
               </div>
+
+              {/* TIPE ABSENSI: MASUK VS PULANG (WAJIB SISWA) */}
+              {studentSelfStatus === 'Hadir' && (
+                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                  <div className="text-xs font-bold text-emerald-950 flex items-center justify-between">
+                    <span>Pilih Sesi Presensi Mandiri *</span>
+                    <span className="text-[10px] text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded font-mono font-semibold">
+                      Siswa Wajib Absen Masuk & Pulang
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setJenisPresensi('Masuk')}
+                      className={`py-2.5 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        jenisPresensi === 'Masuk'
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      <Clock className="w-4 h-4" />
+                      <span>1. Absen Masuk (Pagi)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setJenisPresensi('Pulang')}
+                      className={`py-2.5 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        jenisPresensi === 'Pulang'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      <Clock className="w-4 h-4" />
+                      <span>2. Absen Pulang (Sore)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Tanggal Presensi */}
               <div>
@@ -2182,6 +2250,130 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP MODAL 1: STATUS VALIDASI KOORDINAT GPS (TIDAK SESUAI) */}
+      {showGpsModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-rose-300 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 bg-rose-100 border-2 border-rose-300 rounded-2xl flex items-center justify-center shrink-0 text-rose-600">
+                <MapPin className="w-6 h-6 animate-bounce" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold uppercase tracking-wider text-rose-600">
+                  Status Validasi Koordinat GPS
+                </div>
+                <h3 className="text-base font-black text-slate-900 mt-0.5">
+                  Di Luar Radius Sekolah!
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowGpsModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-rose-50/80 rounded-2xl border border-rose-200 space-y-2 text-xs text-rose-950">
+              <div className="flex justify-between items-center pb-2 border-b border-rose-200/80">
+                <span className="text-slate-600 font-semibold">Jarak Anda ke Sekolah:</span>
+                <span className="font-mono font-black text-rose-700 bg-rose-200/70 px-2 py-0.5 rounded">
+                  {studentGps.distance} Meter
+                </span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-rose-200/80">
+                <span className="text-slate-600 font-semibold">Batas Radius Maksimal:</span>
+                <span className="font-mono font-bold text-slate-800">
+                  {schoolCoordinates.radiusMeters} Meter
+                </span>
+              </div>
+              <div className="pt-1">
+                <span className="text-slate-600 font-semibold block mb-0.5">Alamat / Koordinat Perangkat:</span>
+                <p className="font-mono text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-rose-200">
+                  {studentGps.address || `${studentGps.lat.toFixed(6)}, ${studentGps.lng.toFixed(6)}`}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Sistem menolak presensi Anda karena berada di luar jangkauan wilayah sekolah. Mohon pastikan GPS perangkat aktif dan Anda berada di area kampus sekolah.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  handleGpsModeChange('inside');
+                  setShowGpsModal(false);
+                }}
+                className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md text-center"
+              >
+                🏫 Gunakan Lokasi Sekolah (Simulator)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleRealGpsDetection();
+                  setShowGpsModal(false);
+                }}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all cursor-pointer text-center"
+              >
+                🔄 Coba Deteksi Ulang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP MODAL 2: HARI LIBUR SEKOLAH / NON-AKTIF */}
+      {showHolidayModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border-2 border-amber-300 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 bg-amber-100 border-2 border-amber-300 rounded-2xl flex items-center justify-center shrink-0 text-amber-700">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold uppercase tracking-wider text-amber-700">
+                  Jadwal Presensi Sekolah
+                </div>
+                <h3 className="text-base font-black text-slate-900 mt-0.5">
+                  Hari Ini Libur / Tidak Ada Jadwal
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowHolidayModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-950 space-y-2">
+              <div className="font-bold text-amber-900 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Keterangan Penolakan Presensi:</span>
+              </div>
+              <p className="font-semibold text-slate-800 bg-white p-2.5 rounded-xl border border-amber-200">
+                {holidayReason}
+              </p>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Siswa tidak perlu melakukan presensi pada hari libur nasional atau di luar hari aktif yang ditentukan sekolah.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowHolidayModal(false)}
+              className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-md text-center"
+            >
+              Mengerti & Tutup
+            </button>
           </div>
         </div>
       )}
