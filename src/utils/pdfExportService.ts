@@ -17,7 +17,7 @@ export function exportSingleStudentExamPDF(
     format: 'a4',
   });
 
-  const pageWidth = doc.getPageWidth();
+  const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   const contentWidth = pageWidth - margin * 2;
 
@@ -273,122 +273,203 @@ export function exportBatchExamResultsPDF(
   portfolios: PortofolioSiswaRecord[],
   sekolahNama?: string
 ) {
+  // Standard F4 Landscape: 330mm width x 215mm height
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation: 'landscape',
     unit: 'mm',
-    format: 'a4',
+    format: [330, 215],
   });
 
-  const pageWidth = doc.getPageWidth();
-  const margin = 15;
-  const contentWidth = pageWidth - margin * 2;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 12;
 
-  // Header
-  doc.setFillColor(11, 60, 109);
-  doc.rect(margin, 12, 12, 12, 'F');
-  doc.setFillColor(0, 135, 90);
-  doc.circle(margin + 6, 18, 3, 'F');
-
-  doc.setTextColor(15, 23, 42);
+  // 1. Kop Surat Resmi
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('PEMERINTAH DAERAH PROVINSI JAWA BARAT', pageWidth / 2, 15, { align: 'center' });
+  doc.setTextColor(20, 30, 50);
+  doc.text('PEMERINTAH DAERAH PROVINSI JAWA BARAT', pageWidth / 2, 12, { align: 'center' });
+
   doc.setFontSize(13);
-  doc.text('DINAS PENDIDIKAN', pageWidth / 2, 20, { align: 'center' });
-  doc.setFontSize(9.5);
-  doc.text('REKAPITULASI HASIL ASESMEN BERBASIS KOMPUTER (CAT)', pageWidth / 2, 25, { align: 'center' });
+  doc.setTextColor(11, 60, 109);
+  doc.text('DINAS PENDIDIKAN', pageWidth / 2, 17, { align: 'center' });
+
+  doc.setFontSize(10);
+  doc.setTextColor(40, 50, 70);
+  doc.text('CABANG DINAS PENDIDIKAN WILAYAH XI', pageWidth / 2, 22, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.setTextColor(71, 85, 105);
+  doc.setTextColor(100, 110, 120);
   doc.text(
-    `${sekolahNama || 'SMA NEGERI 1 PROVINSI JAWA BARAT'} | Paket: ${ujian.namaUjian}`,
+    `${sekolahNama || 'SMA NEGERI 1 PROVINSI JAWA BARAT'} • Laman: disdik.jabarprov.go.id`,
     pageWidth / 2,
-    29,
+    26.5,
     { align: 'center' }
   );
 
-  doc.setDrawColor(11, 60, 109);
+  // Double Divider Lines
+  doc.setDrawColor(15, 76, 129);
   doc.setLineWidth(0.8);
-  doc.line(margin, 32, pageWidth - margin, 32);
-  doc.setDrawColor(0, 135, 90);
+  doc.line(margin, 29, pageWidth - margin, 29);
   doc.setLineWidth(0.3);
-  doc.line(margin, 33.2, pageWidth - margin, 33.2);
+  doc.line(margin, 30, pageWidth - margin, 30);
 
-  // Exam Info Summary
-  doc.setFontSize(8.5);
+  // Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text('REKAPITULASI HASIL ASESMEN BERBASIS KOMPUTER (CAT) & PORTOFOLIO NILAI', pageWidth / 2, 36, {
+    align: 'center',
+  });
+
+  // Subtitle & Meta
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
   doc.setTextColor(51, 65, 85);
-  doc.text(`Mata Pelajaran: ${ujian.mapelNama}`, margin, 40);
-  doc.text(`Tingkat / Kelas: Kelas ${ujian.kelas}`, margin, 45);
-  doc.text(`Standar KKM: ${ujian.nilaiMinimum}`, margin + 80, 40);
-  doc.text(`Total Peserta Dinilai: ${portfolios.length} Siswa`, margin + 80, 45);
+  doc.text(
+    `Paket Ujian: ${ujian.namaUjian || 'Semua Ujian'}  |  Mata Pelajaran: ${ujian.mapelNama || 'Semua Mapel'}  |  KKM: ${ujian.nilaiMinimum || 75}  |  Total Peserta: ${portfolios.length} Siswa`,
+    pageWidth / 2,
+    41,
+    { align: 'center' }
+  );
 
   // Table Headers
-  const tableY = 51;
+  const tableY = 46;
+  const colWidths = [12, 28, 55, 45, 45, 22, 22, 22, 30, 25]; // total ~306mm
+  const colHeaders = [
+    'NO',
+    'NISN',
+    'NAMA LENGKAP SISWA',
+    'MATA PELAJARAN',
+    'PAKET UJIAN CAT',
+    'TANGGAL',
+    'B / S',
+    'NILAI',
+    'CAPAIAN',
+    'STATUS',
+  ];
+
   doc.setFillColor(11, 60, 109);
-  doc.rect(margin, tableY, contentWidth, 7, 'F');
+  doc.rect(margin, tableY, pageWidth - margin * 2, 7, 'F');
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
 
-  doc.text('NO', margin + 2, tableY + 4.8);
-  doc.text('NISN', margin + 12, tableY + 4.8);
-  doc.text('NAMA SISWA', margin + 35, tableY + 4.8);
-  doc.text('B / S', margin + 105, tableY + 4.8);
-  doc.text('NILAI CAT', margin + 125, tableY + 4.8);
-  doc.text('STATUS', margin + 148, tableY + 4.8);
+  let curX = margin;
+  colHeaders.forEach((h, i) => {
+    const w = colWidths[i];
+    doc.text(h, curX + w / 2, tableY + 4.8, { align: 'center' });
+    curX += w;
+  });
 
   let curY = tableY + 7;
-  const rowH = 6.5;
+  const rowH = 6.2;
 
   portfolios.forEach((item, index) => {
-    if (curY > 265) {
+    if (curY > pageHeight - 32) {
       doc.addPage();
       curY = 20;
+
+      // Repeat Table Header
+      doc.setFillColor(11, 60, 109);
+      doc.rect(margin, curY, pageWidth - margin * 2, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+
+      let headerX = margin;
+      colHeaders.forEach((h, i) => {
+        const w = colWidths[i];
+        doc.text(h, headerX + w / 2, curY + 4.8, { align: 'center' });
+        headerX += w;
+      });
+      curY += 7;
     }
 
     if (index % 2 === 1) {
       doc.setFillColor(248, 250, 252);
-      doc.rect(margin, curY, contentWidth, rowH, 'F');
+      doc.rect(margin, curY, pageWidth - margin * 2, rowH, 'F');
     }
 
     doc.setDrawColor(226, 232, 240);
-    doc.rect(margin, curY, contentWidth, rowH, 'S');
-
-    doc.setTextColor(51, 65, 85);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-
-    doc.text(`${index + 1}`, margin + 2, curY + 4.5);
-    doc.text(`${item.nisn}`, margin + 12, curY + 4.5);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${item.namaSiswa}`, margin + 35, curY + 4.5);
+    doc.rect(margin, curY, pageWidth - margin * 2, rowH, 'S');
 
     doc.setFont('helvetica', 'normal');
-    doc.text(`${item.jumlahBenar}B / ${item.jumlahSalah}S`, margin + 105, curY + 4.5);
+    doc.setFontSize(7.2);
+    doc.setTextColor(30, 41, 59);
 
+    let cellX = margin;
+
+    // No
+    doc.text(`${index + 1}`, cellX + colWidths[0] / 2, curY + 4.2, { align: 'center' });
+    cellX += colWidths[0];
+
+    // NISN
+    doc.text(`${item.nisn}`, cellX + colWidths[1] / 2, curY + 4.2, { align: 'center' });
+    cellX += colWidths[1];
+
+    // Nama
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(item.nilai >= item.kkm ? 0 : 225, item.nilai >= item.kkm ? 135 : 29, item.nilai >= item.kkm ? 90 : 72);
-    doc.text(`${item.nilai}`, margin + 125, curY + 4.5);
+    const namaTrunc = item.namaSiswa.length > 28 ? item.namaSiswa.substring(0, 26) + '...' : item.namaSiswa;
+    doc.text(namaTrunc, cellX + 3, curY + 4.2);
+    cellX += colWidths[2];
 
-    doc.setFontSize(7);
-    doc.text(`${item.statusKelulusan}`, margin + 148, curY + 4.5);
+    // Mapel
+    doc.setFont('helvetica', 'normal');
+    const mapelTrunc = item.mapelNama.length > 24 ? item.mapelNama.substring(0, 22) + '...' : item.mapelNama;
+    doc.text(mapelTrunc, cellX + 3, curY + 4.2);
+    cellX += colWidths[3];
+
+    // Nama Ujian
+    const ujianTrunc = item.namaUjian.length > 24 ? item.namaUjian.substring(0, 22) + '...' : item.namaUjian;
+    doc.text(ujianTrunc, cellX + 3, curY + 4.2);
+    cellX += colWidths[4];
+
+    // Tanggal
+    doc.text(`${item.tanggalPelaksanaan}`, cellX + colWidths[5] / 2, curY + 4.2, { align: 'center' });
+    cellX += colWidths[5];
+
+    // B / S
+    doc.text(`${item.jumlahBenar}B / ${item.jumlahSalah}S`, cellX + colWidths[6] / 2, curY + 4.2, { align: 'center' });
+    cellX += colWidths[6];
+
+    // Nilai
+    doc.setFont('helvetica', 'bold');
+    const isPass = item.nilai >= item.kkm;
+    doc.setTextColor(isPass ? 0 : 225, isPass ? 135 : 29, isPass ? 90 : 72);
+    doc.text(`${item.nilai}`, cellX + colWidths[7] / 2, curY + 4.2, { align: 'center' });
+    cellX += colWidths[7];
+
+    // Capaian
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${item.kategoriCapaian}`, cellX + colWidths[8] / 2, curY + 4.2, { align: 'center' });
+    cellX += colWidths[8];
+
+    // Status
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${item.statusKelulusan}`, cellX + colWidths[9] / 2, curY + 4.2, { align: 'center' });
 
     curY += rowH;
   });
 
-  // Footer & Signature
-  if (curY < 240) {
-    const signY = curY + 12;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(51, 65, 85);
-    doc.text(`Jawa Barat, ${new Date().toLocaleDateString('id-ID')}`, pageWidth - margin - 50, signY);
-    doc.text('Guru Mata Pelajaran / Pengawas,', pageWidth - margin - 50, signY + 5);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Tim Kurikulum Disdik Jabar', pageWidth - margin - 50, signY + 22);
-  }
+  // Signature Block
+  const signY = Math.min(curY + 8, pageHeight - 28);
+  const signX = pageWidth - margin - 55;
 
-  doc.save(`Rekap_Hasil_Ujian_${ujian.namaUjian.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Jawa Barat, ${new Date().toLocaleDateString('id-ID')}`, signX, signY, { align: 'center' });
+  doc.text('Guru Pengampu / Panitia Ujian,', signX, signY + 4, { align: 'center' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Tim Kurikulum & Asesmen Disdik Jabar', signX, signY + 18, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text('NIP. 197805122003121005', signX, signY + 22, { align: 'center' });
+
+  doc.save(`Rekap_Hasil_Ujian_${(ujian.namaUjian || 'CAT').replace(/[^a-zA-Z0-9]/g, '_')}_F4_Landscape.pdf`);
 }

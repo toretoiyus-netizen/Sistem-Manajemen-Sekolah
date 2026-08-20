@@ -15,9 +15,13 @@ import {
   Phone,
   Mail,
   Award,
+  FileText,
 } from 'lucide-react';
 import { Guru, UserAccount } from '../types';
 import { dbService } from '../services/mockDatabase';
+import * as XLSX from 'xlsx';
+import { useToast } from './Toast';
+import { exportToF4LandscapePDF } from '../utils/pdfExportUtil';
 
 interface DataGuruProps {
   currentUser: UserAccount;
@@ -25,6 +29,7 @@ interface DataGuruProps {
 
 export const DataGuru: React.FC<DataGuruProps> = ({ currentUser }) => {
   const db = dbService.getState();
+  const { success } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<string>('Semua');
   const [filterTugas, setFilterTugas] = useState<string>('Semua');
@@ -152,6 +157,129 @@ export const DataGuru: React.FC<DataGuruProps> = ({ currentUser }) => {
 
     dbService.saveToStorage(db);
     setIsFormModalOpen(false);
+    success('Data tenaga pendidik berhasil disimpan!', 'Data Guru');
+  };
+
+  // Export to Precision Landscape F4 PDF
+  const handleExportPDF = () => {
+    const head = [
+      ['No', 'NIP', 'NIK', 'Nama Lengkap Tenaga Pendidik', 'JK', 'Tempat & Tgl Lahir', 'Mata Pelajaran Utama', 'Kepegawaian', 'Tugas Tambahan', 'No. HP', 'Email Resmi']
+    ];
+
+    const body = filteredGuru.map((g, idx) => [
+      idx + 1,
+      g.nip,
+      g.nik,
+      `${g.nama}${g.gelar ? ', ' + g.gelar : ''}`,
+      g.jenisKelamin === 'Laki-laki' ? 'L' : 'P',
+      `${g.tempatLahir}, ${g.tanggalLahir}`,
+      g.mataPelajaranUtama,
+      g.statusKepegawaian,
+      g.tugasTambahan,
+      g.nomorHp || '-',
+      g.email || '-',
+    ]);
+
+    exportToF4LandscapePDF({
+      title: 'Buku Induk Data Guru & Tenaga Kependidikan',
+      subtitle: `Laporan Kepegawaian Pendidik • Cabang Dinas Pendidikan Wilayah XI • Tahun Ajaran 2024/2025`,
+      fileName: `Buku_Induk_Guru_DisdikJabar_F4_Landscape.pdf`,
+      metaInfo: [
+        { label: 'Filter Role', value: filterRole },
+        { label: 'Filter Tugas', value: filterTugas },
+        { label: 'Total Pendidik', value: `${filteredGuru.length} Orang` },
+      ],
+      head: head,
+      body: body,
+      signatureRole: 'Kepala Sekolah / Admin Kepegawaian',
+      signatureName: 'Drs. H. Hendra Sukmana, M.Pd.',
+      signatureNip: '197508122002121004',
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 26, halign: 'center' },
+        2: { cellWidth: 26, halign: 'center' },
+        3: { cellWidth: 42 },
+        4: { cellWidth: 10, halign: 'center' },
+        5: { cellWidth: 32 },
+        6: { cellWidth: 38 },
+        7: { cellWidth: 20, halign: 'center' },
+        8: { cellWidth: 30, halign: 'center' },
+        9: { cellWidth: 26, halign: 'center' },
+        10: { cellWidth: 45 },
+      },
+    });
+
+    success('Buku Induk Guru berhasil dicetak ke format PDF Landscape F4 Presisi!', 'Cetak PDF Selesai');
+  };
+
+  // Export to Excel
+  const handleExportExcel = () => {
+    const exportData = filteredGuru.map((g) => ({
+      NIP: g.nip,
+      NIK: g.nik,
+      NamaLengkap: `${g.nama}${g.gelar ? ', ' + g.gelar : ''}`,
+      JenisKelamin: g.jenisKelamin,
+      TempatLahir: g.tempatLahir,
+      TanggalLahir: g.tanggalLahir,
+      MataPelajaranUtama: g.mataPelajaranUtama,
+      StatusKepegawaian: g.statusKepegawaian,
+      Role: g.role,
+      TugasTambahan: g.tugasTambahan,
+      NomorHP: g.nomorHp,
+      Email: g.email,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data_Guru_Jabar');
+    XLSX.writeFile(workbook, `Data_Guru_DisdikJabar_${new Date().toISOString().split('T')[0]}.xlsx`);
+    success('Data guru berhasil diekspor ke format Excel (.xlsx)', 'Ekspor Berhasil');
+  };
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    const exportData = filteredGuru.map((g) => ({
+      ID: g.id,
+      NIP: g.nip,
+      NIK: g.nik,
+      NamaLengkap: `${g.nama}${g.gelar ? ', ' + g.gelar : ''}`,
+      JenisKelamin: g.jenisKelamin,
+      MataPelajaranUtama: g.mataPelajaranUtama,
+      StatusKepegawaian: g.statusKepegawaian,
+      Role: g.role,
+      TugasTambahan: g.tugasTambahan,
+      NomorHP: g.nomorHp,
+      Email: g.email,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Backup_Data_Guru_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    success('Backup data guru berhasil disimpan ke file CSV (.csv)', 'Backup Lokal Selesai');
+  };
+
+  // Export to JSON
+  const handleExportJSON = () => {
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(filteredGuru, null, 2)
+    )}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', jsonString);
+    downloadAnchor.setAttribute(
+      'download',
+      `Backup_Data_Guru_${new Date().toISOString().split('T')[0]}.json`
+    );
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    success('Backup data guru berhasil diunduh dalam format JSON (.json)', 'Backup JSON Tersimpan');
   };
 
   return (
@@ -168,11 +296,47 @@ export const DataGuru: React.FC<DataGuruProps> = ({ currentUser }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportPDF}
+            className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Cetak PDF Format Landscape F4 (Folio) Presisi"
+          >
+            <FileText className="w-3.5 h-3.5 text-rose-600" />
+            <span>Cetak PDF (F4 Landscape)</span>
+          </button>
+
+          <button
+            onClick={handleExportExcel}
+            className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Ekspor ke spreadsheet Excel (.xlsx)"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Excel (.xlsx)</span>
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Backup lokal ke format CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-600" />
+            <span>CSV</span>
+          </button>
+
+          <button
+            onClick={handleExportJSON}
+            className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Backup lokal struktur database lengkap JSON"
+          >
+            <Download className="w-3.5 h-3.5 text-purple-600" />
+            <span>JSON</span>
+          </button>
+
           {canCreate && (
             <button
               onClick={handleOpenCreate}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 ml-1"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Guru Baru</span>

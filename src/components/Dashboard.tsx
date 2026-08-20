@@ -22,6 +22,8 @@ import {
 import { UserAccount, KBMSchedule } from '../types';
 import { dbService } from '../services/mockDatabase';
 import { StatistikAkademikWidget } from './StatistikAkademikWidget';
+import { LogAuditPresensiWidget } from './LogAuditPresensiWidget';
+import { RekapitulasiAkademikTable } from './RekapitulasiAkademikTable';
 
 interface DashboardProps {
   currentUser: UserAccount;
@@ -41,10 +43,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   // Selected Day for Student Schedule Tab
   const [selectedDay, setSelectedDay] = useState<'Senin' | 'Selasa' | 'Rabu' | 'Kamis' | 'Jumat' | 'Sabtu'>('Senin');
-
-  // AI Diagnostic State
-  const [aiReportLoading, setAiReportLoading] = useState(false);
-  const [aiReportText, setAiReportText] = useState<string | null>(null);
 
   // Statistics calculation
   const totalGuru = (db.guru || []).length;
@@ -112,37 +110,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
     return true;
   });
-
-  const handleGenerateAiDiagnostic = async () => {
-    setAiReportLoading(true);
-    try {
-      const res = await fetch('/api/ai/deep-analysis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          testTitle: 'PTS Semester Ganjil 2024/2025',
-          subject: 'Informatika & Berpikir Komputasional',
-          averageScore: 88.5,
-          highestScore: 100,
-          lowestScore: 70,
-          passCount: 28,
-          totalStudents: 32,
-          difficultTopics: 'Algoritma Percabangan Kompleks & Aksara Sunda Tradisional',
-          scoreDistribution: { '90-100': 14, '80-89': 10, '75-79': 4, '<75': 4 },
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setAiReportText(data.analysis);
-      } else {
-        setAiReportText('Analisis AI Disdik Jabar: Tingkat ketuntasan belajar mencapai 87.5% dengan rata-rata nilai 88.5. Kategori pemahaman materi Berpikir Komputasional sangat memuaskan.');
-      }
-    } catch (e) {
-      setAiReportText('Rekomendasi Diagnostik Disdik Jabar: Seluruh indikator ketuntasan KBM terpenuhi secara konsisten. Disarankan pelaksanaan pengayaan praktikum bagi siswa berprestasi tinggi.');
-    } finally {
-      setAiReportLoading(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -411,6 +378,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
+          {/* Academic Recapitulation Table with PDF & Excel Export */}
+          {role !== 'SISWA' && (
+            <RekapitulasiAkademikTable />
+          )}
+
           {/* Wali Kelas & Guru Wali Special Scoped Section if relevant */}
           {(role === 'WALI KELAS' || role === 'GURU WALI') && (
             <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-xs">
@@ -489,51 +461,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           )}
 
-          {/* AI Diagnostic Summary Card */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-100 shrink-0">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                    <span>AI Diagnostic Evaluator Disdik Jabar</span>
-                    <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full border border-emerald-100">
-                      Gemini Pro
-                    </span>
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Analisis performa KBM, rekapitulasi nilai ujian, dan rekomendasi intervensi pedagogik.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={handleGenerateAiDiagnostic}
-                disabled={aiReportLoading}
-                className="px-4 py-2 bg-[#1e293b] hover:bg-black text-white font-bold rounded-2xl text-xs flex items-center gap-2 shadow-xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-              >
-                {aiReportLoading ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Menganalisis...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Jalankan AI Diagnostic</span>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {aiReportText && (
-              <div className="mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-2 whitespace-pre-line leading-relaxed">
-                {aiReportText}
-              </div>
-            )}
-          </div>
+          {/* Real-Time Geofence & GPS Attendance Audit Log */}
+          {role !== 'SISWA' && (
+            <LogAuditPresensiWidget />
+          )}
         </div>
       )}
     </div>

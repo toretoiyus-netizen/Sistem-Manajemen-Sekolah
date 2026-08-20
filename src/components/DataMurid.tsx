@@ -26,6 +26,8 @@ import {
 import * as XLSX from 'xlsx';
 import { Siswa, UserAccount, Guru, PortofolioSiswaRecord } from '../types';
 import { dbService } from '../services/mockDatabase';
+import { useToast } from './Toast';
+import { exportToF4LandscapePDF } from '../utils/pdfExportUtil';
 
 interface DataMuridProps {
   currentUser: UserAccount;
@@ -37,6 +39,7 @@ export const DataMurid: React.FC<DataMuridProps> = ({
   onResetStudentPassword,
 }) => {
   const db = dbService.getState();
+  const { success } = useToast();
   const role = currentUser.role;
   const currentTeacher = db.guru.find((g) => g.id === currentUser.referenceId);
 
@@ -195,7 +198,8 @@ export const DataMurid: React.FC<DataMuridProps> = ({
   };
 
   const handleExportExcel = () => {
-    const exportData = filteredStudents.map((s) => ({
+    const exportData = filteredStudents.map((s, idx) => ({
+      No: idx + 1,
       NIS: s.nis,
       NISN: s.nisn,
       NIK: s.nik,
@@ -215,6 +219,107 @@ export const DataMurid: React.FC<DataMuridProps> = ({
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Data_Murid_Jabar');
     XLSX.writeFile(workbook, `Data_Murid_${filterRombel}_2024.xlsx`);
+    success('Data siswa berhasil diekspor ke format Excel (.xlsx)', 'Ekspor Berhasil');
+  };
+
+  // Export to Precision Landscape F4 PDF
+  const handleExportPDF = () => {
+    const head = [
+      ['No', 'NISN', 'NIS', 'NIK', 'Nama Lengkap Siswa', 'JK', 'Tempat & Tgl Lahir', 'Kelas / Rombel', 'Nama Orang Tua / Wali', 'No. HP', 'Status']
+    ];
+
+    const body = filteredStudents.map((s, idx) => [
+      idx + 1,
+      s.nisn,
+      s.nis,
+      s.nik,
+      s.namaLengkap,
+      s.jenisKelamin === 'Laki-laki' ? 'L' : 'P',
+      `${s.tempatLahir}, ${s.tanggalLahir}`,
+      s.rombel,
+      s.namaOrangTua || s.namaIbu || '-',
+      s.nomorHpOrangTua || s.nomorHp || '-',
+      s.status,
+    ]);
+
+    exportToF4LandscapePDF({
+      title: 'Buku Induk Data Siswa Terpadu',
+      subtitle: `Laporan Data Induk Murid • Tahun Ajaran 2024/2025 • Filter Rombel: ${filterRombel}`,
+      fileName: `Buku_Induk_Siswa_${filterRombel}_F4_Landscape.pdf`,
+      metaInfo: [
+        { label: 'Filter Kelas', value: filterKelas },
+        { label: 'Rombel', value: filterRombel },
+        { label: 'Total Siswa', value: `${filteredStudents.length} Orang` },
+      ],
+      head: head,
+      body: body,
+      signatureRole: role === 'WALI KELAS' ? 'Wali Kelas' : 'Kepala Sekolah / Admin Data',
+      signatureName: currentTeacher ? currentTeacher.nama : 'Drs. H. Hendra Sukmana, M.Pd.',
+      signatureNip: currentTeacher ? currentTeacher.nip : '197508122002121004',
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 24, halign: 'center' },
+        2: { cellWidth: 18, halign: 'center' },
+        3: { cellWidth: 32, halign: 'center' },
+        4: { cellWidth: 50 },
+        5: { cellWidth: 10, halign: 'center' },
+        6: { cellWidth: 40 },
+        7: { cellWidth: 26, halign: 'center' },
+        8: { cellWidth: 40 },
+        9: { cellWidth: 28, halign: 'center' },
+        10: { cellWidth: 18, halign: 'center' },
+      },
+    });
+
+    success('Buku Induk Siswa berhasil dicetak ke format PDF Landscape F4 Presisi!', 'Cetak PDF Selesai');
+  };
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    const exportData = filteredStudents.map((s) => ({
+      ID: s.id,
+      NISN: s.nisn,
+      NIK: s.nik,
+      NamaLengkap: s.namaLengkap,
+      JenisKelamin: s.jenisKelamin,
+      TempatLahir: s.tempatLahir,
+      TanggalLahir: s.tanggalLahir,
+      Kelas: s.kelas,
+      Rombel: s.rombel,
+      NamaOrangTua: s.namaOrangTua,
+      NamaIbu: s.namaIbu,
+      NoHpOrangTua: s.nomorHpOrangTua,
+      Status: s.status,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Backup_Data_Siswa_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    success('Backup data siswa berhasil disimpan ke file CSV (.csv)', 'Backup Lokal Selesai');
+  };
+
+  // Export to JSON
+  const handleExportJSON = () => {
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(filteredStudents, null, 2)
+    )}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', jsonString);
+    downloadAnchor.setAttribute(
+      'download',
+      `Backup_Data_Siswa_${new Date().toISOString().split('T')[0]}.json`
+    );
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    success('Backup data siswa berhasil diunduh dalam format JSON (.json)', 'Backup JSON Tersimpan');
   };
 
   // Check Quota for Guru Wali when adding/editing in form
@@ -249,19 +354,47 @@ export const DataMurid: React.FC<DataMuridProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportPDF}
+            className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Cetak PDF Resmi Format Landscape F4 (Folio) Presisi"
+          >
+            <FileText className="w-3.5 h-3.5 text-rose-600" />
+            <span>Cetak PDF (F4 Landscape)</span>
+          </button>
+
           <button
             onClick={handleExportExcel}
-            className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Ekspor ke spreadsheet Excel (.xlsx)"
           >
-            <Download className="w-4 h-4 text-emerald-600" />
-            <span>Export Excel</span>
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Excel (.xlsx)</span>
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Backup lokal ke format CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-600" />
+            <span>CSV</span>
+          </button>
+
+          <button
+            onClick={handleExportJSON}
+            className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Backup lokal struktur database lengkap JSON"
+          >
+            <Download className="w-3.5 h-3.5 text-purple-600" />
+            <span>JSON</span>
           </button>
 
           {canCreate && (
             <button
               onClick={handleOpenCreate}
-              className="bg-[#1e293b] hover:bg-black text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+              className="bg-[#1e293b] hover:bg-black text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer ml-1"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Siswa</span>

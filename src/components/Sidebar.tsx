@@ -17,6 +17,8 @@ import {
   MonitorCheck,
   X,
   Briefcase,
+  Building2,
+  Palette,
 } from 'lucide-react';
 import { UserAccount } from '../types';
 import { dbService } from '../services/mockDatabase';
@@ -42,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileMenuOpen,
   setIsMobileMenuOpen,
 }) => {
+  const db = dbService.getState();
   const currentActive = activeTab || activeView || 'dashboard';
   const handleNav = (id: string) => {
     if (setActiveTab) setActiveTab(id);
@@ -75,15 +78,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'kbm',
-      label: role === 'SISWA' ? 'Jadwal KBM' : 'Data KBM',
+      label: role === 'SISWA' ? 'Jadwal KBM Siswa' : 'Data KBM',
       icon: BookOpen,
-      show: dbService.checkPermission(currentUser, 'kbm.view'),
+      show: role !== 'GURU MAPEL' && dbService.checkPermission(currentUser, 'kbm.view'),
     },
     {
       id: 'tugas_tambahan',
-      label: 'Tugas Tambahan & Beban',
+      label: 'Tugas Tambahan & Jam Mengajar',
       icon: Briefcase,
-      show: role !== 'SISWA',
+      show: role === 'SUPER ADMIN' || role === 'ADMIN' || role === 'KEPALA SEKOLAH' || role === 'WAKASEK',
       badge: '24 Jam',
     },
     {
@@ -119,26 +122,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
       show: dbService.checkPermission(currentUser, 'akun.view') || dbService.checkPermission(currentUser, 'akun.reset_password'),
     },
     {
+      id: 'konfigurasi',
+      label: 'Konfigurasi Sekolah',
+      icon: Building2,
+      show: role === 'SUPER ADMIN',
+      badge: 'Admin',
+    },
+    {
       id: 'gas_deploy',
       alias: 'gas',
       label: 'GAS Deployment',
       icon: Code2,
-      show: role === 'SUPER ADMIN' || role === 'ADMIN',
-      badge: 'Export .gs',
+      show: role === 'SUPER ADMIN',
+      badge: 'Super Admin',
     },
   ];
 
   const sidebarContent = (
     <div className="w-64 bg-[#1e293b] flex flex-col h-full shrink-0 shadow-xl select-none">
       {/* Brand Header */}
-      <div className="p-5 flex items-center justify-between border-b border-slate-700/50 bg-[#0f172a]">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#38bdf8] rounded-lg flex items-center justify-center font-bold text-white text-lg shadow-sm">
-            J
+      <div className="p-4 flex items-center justify-between border-b border-slate-700/50 bg-[#0f172a]">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 bg-white/10 rounded-xl p-1 flex items-center justify-center shrink-0 border border-white/10">
+            {db.config.logoUrl ? (
+              <img src={db.config.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+            ) : (
+              <Building2 className="w-5 h-5 text-emerald-400" />
+            )}
           </div>
-          <div className="leading-tight">
-            <h1 className="text-white font-bold text-xs tracking-wider uppercase">SMS JABAR</h1>
-            <p className="text-[#38bdf8] text-[10px] font-medium uppercase tracking-tight">Jawa Barat Juara</p>
+          <div className="leading-tight min-w-0 flex-1">
+            <h1 className="text-white font-bold text-xs tracking-wide uppercase truncate">
+              {db.config.namaAplikasi || 'SMS JABAR'}
+            </h1>
+            <p className="text-emerald-400 text-[10px] font-medium truncate">
+              {db.config.sloganAplikasi || db.config.namaSekolah || 'Jawa Barat Juara'}
+            </p>
           </div>
         </div>
         {setIsMobileMenuOpen && (

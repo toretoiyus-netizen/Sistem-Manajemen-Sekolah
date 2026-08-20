@@ -47,7 +47,9 @@ export type PresensiMethod =
   | 'Barcode/QR Code'
   | 'Manual Guru'
   | 'GPS'
-  | 'QR Code';
+  | 'QR Code'
+  | 'Mandiri Siswa (GPS & Selfie)'
+  | 'Presensi Mandiri Siswa (GPS & Selfie)';
 
 export type PresensiStatus = 'Hadir' | 'Sakit' | 'Izin' | 'Alfa' | 'Alpa';
 
@@ -113,7 +115,9 @@ export interface Siswa {
   nomorHpOrangTua: string;
   kelas: string; // e.g. "10", "11", "12"
   rombel: string; // e.g. "X IPA 1", "XI RPL 2"
+  rombelId?: string;
   guruWaliId: string; // reference to Guru ID
+  guruWaliNama?: string;
   waliKelasId: string; // reference to Guru ID
   foto: string;
   status: 'Aktif' | 'Nonaktif';
@@ -184,10 +188,45 @@ export interface BankSoal {
   jawabanBenar: string; // e.g. "A", or array JSON for complex, or text for essay
   pembahasan?: string;
   bobot: number;
+  folderId?: string;
   pembuatId: string;
   pembuatNama: string;
   status: 'Aktif' | 'Draft' | 'Arsip';
   createdAt: string;
+}
+
+export interface FolderBankSoal {
+  id: string; // FOLD-000001
+  namaFolder: string;
+  mapelId?: string;
+  mapelNama: string;
+  tingkat: '10' | '11' | '12' | 'Semua';
+  deskripsi?: string;
+  totalSoal?: number;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface JadwalKedinasanEvent {
+  id: string; // EVT-000001
+  judul: string;
+  kategori: 'Kalender Pendidikan' | 'Rapat Dinas' | 'Asesmen/Ujian' | 'Libur Nasional' | 'Kegiatan Sekolah' | 'MPLS' | 'Rapor & Evaluasi';
+  tanggalMulai: string; // YYYY-MM-DD
+  tanggalSelesai: string; // YYYY-MM-DD
+  keterangan: string;
+  lokasi?: string;
+  penanggungJawab: string;
+  targetAudience: 'Semua' | 'Guru' | 'Siswa' | 'Tendik' | 'Wali Murid';
+  warnaBadge?: string;
+}
+
+export interface TahunPelajaranConfig {
+  id: string;
+  tahun: string; // e.g. "2024/2025"
+  semester: 'Ganjil' | 'Genap';
+  isAktif: boolean;
+  tanggalMulai: string;
+  tanggalSelesai: string;
 }
 
 export interface Ujian {
@@ -261,6 +300,9 @@ export interface PresensiRecord {
   status: PresensiStatus;
   metode: PresensiMethod;
   jamMasuk?: string;
+  jamPulang?: string;
+  statusMasuk?: 'Tepat Waktu' | 'Terlambat';
+  statusPulang?: 'Sudah Pulang' | 'Belum Pulang' | 'Tidak Absen Pulang';
   waktuPresensi?: string;
   mapelId?: string;
   guruId?: string;
@@ -271,7 +313,15 @@ export interface PresensiRecord {
     address?: string;
     isWithinSchoolRadius: boolean;
   };
+  lokasiPulang?: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    address?: string;
+    isWithinSchoolRadius: boolean;
+  };
   fotoSelfie?: string;
+  fotoSelfiePulang?: string;
   rfidCardNumber?: string;
   keterangan?: string;
   lampiranSurat?: string;
@@ -352,6 +402,8 @@ export interface UserProfileData {
 
 export interface SystemConfig {
   namaSekolah: string;
+  namaAplikasi?: string;
+  sloganAplikasi?: string;
   npsn: string;
   alamat: string;
   kabupatenKota: string;
@@ -365,16 +417,42 @@ export interface SystemConfig {
     lat: number;
     lng: number;
     radiusMeters: number;
+    namaLokasi?: string;
   };
+  jadwalPresensi?: {
+    jamMasukMulai: string; // e.g. "06:00"
+    jamMasukSelesai: string; // e.g. "07:30" (batas on-time)
+    jamMasukToleransi: string; // e.g. "08:00" (batas terlambat)
+    jamPulangMulai: string; // e.g. "14:00"
+    jamPulangSelesai: string; // e.g. "18:00"
+    hariAktif: string[]; // e.g. ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat']
+    autoMarkAbsentIfNoExit: boolean; // Jika tidak absen pulang otomatis dianggap tidak hadir / alpa
+  };
+  allowedRolesForRoleMatrix?: UserRole[];
+  allowedRolesForAuditTrail?: UserRole[];
   configVersion: string;
   databaseSpreadsheetId: string;
   rootGoogleDriveFolderId: string;
+  primaryColorTheme?: 'emerald' | 'blue' | 'indigo' | 'amber' | 'rose' | 'slate';
+  maintenanceMode?: {
+    isEnabled: boolean;
+    message: string;
+    estimatedDone: string;
+    allowedRoles: UserRole[];
+  };
+  pushNotificationConfig?: {
+    enabled: boolean;
+    gasWebhookUrl: string;
+    notifyExam: boolean;
+    notifyAnnouncement: boolean;
+    notifyAttendance: boolean;
+  };
 }
 
 export interface RolePermissionDefinition {
   code: string;
   name: string;
-  category: 'Dashboard' | 'Guru' | 'Siswa' | 'KBM' | 'Bank Soal' | 'Ujian' | 'Presensi' | 'Pengumuman' | 'Akun' | 'Role';
+  category: 'Dashboard' | 'Guru' | 'Siswa' | 'KBM' | 'Bank Soal' | 'Ujian' | 'Presensi' | 'Pengumuman' | 'Akun' | 'Role' | 'Audit & Keamanan';
   description: string;
 }
 

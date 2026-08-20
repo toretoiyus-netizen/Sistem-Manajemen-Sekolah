@@ -32,7 +32,58 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
   onOpenCatPortal,
 }) => {
   const db = dbService.getState();
-  const currentTeacher = db.guru.find((g) => g.id === currentUser.referenceId);
+  const role = currentUser.role;
+  const isStudent = role === 'SISWA';
+  const isGuruMapel = role === 'GURU MAPEL';
+  const isGuruWali = role === 'GURU WALI';
+  const isWaliKelas = role === 'WALI KELAS';
+  const isWakasek = role === 'WAKASEK';
+
+  // Match current student
+  const currentStudent = isStudent
+    ? db.siswa.find(
+        (s) =>
+          s.id === currentUser.referenceId ||
+          s.nisn === currentUser.username ||
+          s.nis === currentUser.username ||
+          s.namaLengkap.toLowerCase() === currentUser.nama.toLowerCase()
+      ) || db.siswa[0]
+    : null;
+
+  // Match current teacher
+  const currentTeacher = !isStudent
+    ? db.guru.find(
+        (g) =>
+          g.id === currentUser.referenceId ||
+          g.nip === currentUser.username ||
+          g.nama.toLowerCase() === currentUser.nama.toLowerCase()
+      ) || db.guru[0]
+    : null;
+
+  // Filtered Portofolio Records based on role requirements
+  const allPortofolio = db.portofolioSiswaList || [];
+  const filteredPortofolio = allPortofolio.filter((p) => {
+    if (isStudent && currentStudent) {
+      return p.nisn === currentStudent.nisn || p.namaSiswa.toLowerCase() === currentStudent.namaLengkap.toLowerCase();
+    }
+    if (isGuruMapel && currentTeacher) {
+      const teacherMapel = currentTeacher.mataPelajaranUtama || '';
+      return p.mapelNama.toLowerCase().includes(teacherMapel.toLowerCase()) || teacherMapel.toLowerCase().includes(p.mapelNama.toLowerCase());
+    }
+    if (isGuruWali && currentTeacher) {
+      const binaanNisns = db.siswa
+        .filter((s) => s.guruWaliId === currentTeacher.id || s.guruWaliNama?.toLowerCase().includes(currentTeacher.nama.toLowerCase()))
+        .map((s) => s.nisn);
+      return binaanNisns.includes(p.nisn);
+    }
+    if (isWaliKelas && currentTeacher) {
+      const rombelStudentsNisns = db.siswa
+        .filter((s) => s.waliKelasId === currentTeacher.id || s.rombel.includes('X MIPA 1'))
+        .map((s) => s.nisn);
+      return rombelStudentsNisns.includes(p.nisn);
+    }
+    return true;
+  });
 
   // Active Tab: 'ujian' | 'booking_lab' | 'rekap_portofolio'
   const [activeTab, setActiveTab] = useState<'ujian' | 'booking_lab' | 'rekap_portofolio'>('ujian');
@@ -213,7 +264,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
   };
 
   const handleExportPortfolioExcel = () => {
-    const data = (db.portofolioSiswaList || []).map((p, idx) => ({
+    const data = filteredPortofolio.map((p, idx) => ({
       No: idx + 1,
       NISN: p.nisn,
       'Nama Siswa': p.namaSiswa,
@@ -261,10 +312,12 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
         <div>
           <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <FileCheck2 className="w-5 h-5 text-purple-600" />
-            <span>Manajemen Ujian, Booking Lab CAT & Portofolio Nilai</span>
+            <span>{isStudent ? 'Portal Ujian CAT & Portofolio Siswa' : 'Manajemen Ujian, Booking Lab CAT & Portofolio Nilai'}</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Sistem terintegrasi: Wajib booking lab sebelum ujian CAT, token acak anti-curang, dan sinkronisasi otomatis ke rekam jejak portofolio siswa.
+            {isStudent
+              ? 'Akses simulasi ujian CAT, paket soal aktif, dan buku portofolio rekapitulasi nilai Anda.'
+              : 'Sistem terintegrasi: Wajib booking lab sebelum ujian CAT, token acak anti-curang, dan sinkronisasi otomatis ke rekam jejak portofolio siswa.'}
           </p>
         </div>
 
@@ -273,19 +326,21 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
             onClick={onOpenCatPortal}
             className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
           >
-            <MonitorCheck className="w-4 h-4" />
-            <span>Simulasi Ruang Ujian CAT</span>
+            <MonitorCheck className="w-4 h-4 text-slate-950" />
+            <span>{isStudent ? 'Masuk Ruang CAT' : 'Simulasi Ruang Ujian CAT'}</span>
           </button>
 
-          <button
-            onClick={() => setIsBookingModalOpen(true)}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
-          >
-            <CalendarDays className="w-4 h-4" />
-            <span>Booking Lab CAT</span>
-          </button>
+          {!isStudent && (
+            <button
+              onClick={() => setIsBookingModalOpen(true)}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span>Booking Lab CAT</span>
+            </button>
+          )}
 
-          {canCreate && (
+          {!isStudent && canCreate && (
             <button
               onClick={handleOpenCreate}
               className="bg-[#1e293b] hover:bg-black text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
@@ -308,20 +363,22 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
           }`}
         >
           <FileCheck2 className="w-4 h-4" />
-          <span>Paket Ujian & Token CAT ({db.ujianList.length})</span>
+          <span>{isStudent ? 'Daftar Ujian CAT' : 'Paket Ujian & Token CAT'} ({db.ujianList.length})</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('booking_lab')}
-          className={`pb-3 px-4 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
-            activeTab === 'booking_lab'
-              ? 'border-purple-600 text-purple-700 font-extrabold'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <CalendarDays className="w-4 h-4" />
-          <span>Jadwal Booking Laboratorium CAT ({(db.bookingCATList || []).length})</span>
-        </button>
+        {!isStudent && (
+          <button
+            onClick={() => setActiveTab('booking_lab')}
+            className={`pb-3 px-4 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+              activeTab === 'booking_lab'
+                ? 'border-purple-600 text-purple-700 font-extrabold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <CalendarDays className="w-4 h-4" />
+            <span>Jadwal Booking Laboratorium CAT ({(db.bookingCATList || []).length})</span>
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('rekap_portofolio')}
@@ -332,7 +389,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
           }`}
         >
           <Award className="w-4 h-4 text-amber-500" />
-          <span>Rekam Jejak Portofolio Siswa ({(db.portofolioSiswaList || []).length})</span>
+          <span>{isStudent ? 'Rekam Jejak Portofolio Saya' : 'Rekam Jejak Portofolio Siswa'} ({filteredPortofolio.length})</span>
         </button>
       </div>
 
@@ -595,13 +652,13 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
                   exportBatchExamResultsPDF(
                     {
                       id: 'ALL',
-                      namaUjian: 'Rekapitulasi Portofolio Hasil Asesmen CAT Siswa',
-                      mapelNama: 'Semua Mata Pelajaran',
+                      namaUjian: isStudent ? 'Rekapitulasi Portofolio Hasil Asesmen CAT Siswa Mandiri' : 'Rekapitulasi Portofolio Hasil Asesmen CAT Siswa',
+                      mapelNama: isGuruMapel && currentTeacher ? currentTeacher.mataPelajaranUtama || 'Mata Pelajaran Pengampu' : 'Semua Mata Pelajaran',
                       kelas: '10-12 SMA/SMK',
                       nilaiMinimum: 75,
                     } as any,
-                    db.portofolioSiswaList || [],
-                    db.config.schoolName
+                    filteredPortofolio,
+                    db.config.namaSekolah
                   )
                 }
                 className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
@@ -625,14 +682,14 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
               <div className="text-[10px] text-slate-400 font-bold uppercase">Total Hasil Asesmen</div>
               <div className="text-lg font-black text-slate-900 mt-1">
-                {(db.portofolioSiswaList || []).length} Rekor
+                {filteredPortofolio.length} Rekor
               </div>
             </div>
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
               <div className="text-[10px] text-slate-400 font-bold uppercase">Tingkat Tuntas / Lulus</div>
               <div className="text-lg font-black text-emerald-700 mt-1">
                 {(() => {
-                  const list = db.portofolioSiswaList || [];
+                  const list = filteredPortofolio;
                   if (list.length === 0) return '0%';
                   const passed = list.filter((p) => p.nilai >= p.kkm).length;
                   return `${Math.round((passed / list.length) * 100)}%`;
@@ -643,7 +700,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
               <div className="text-[10px] text-slate-400 font-bold uppercase">Rata-Rata Nilai CAT</div>
               <div className="text-lg font-black text-purple-700 mt-1">
                 {(() => {
-                  const list = db.portofolioSiswaList || [];
+                  const list = filteredPortofolio;
                   if (list.length === 0) return '0';
                   const total = list.reduce((acc, curr) => acc + curr.nilai, 0);
                   return Math.round(total / list.length);
@@ -653,7 +710,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
             <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs">
               <div className="text-[10px] text-slate-400 font-bold uppercase">Perlu Remedial</div>
               <div className="text-lg font-black text-rose-600 mt-1">
-                {(db.portofolioSiswaList || []).filter((p) => p.nilai < p.kkm).length} Siswa
+                {filteredPortofolio.filter((p) => p.nilai < p.kkm).length} Siswa
               </div>
             </div>
           </div>
@@ -674,7 +731,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {(db.portofolioSiswaList || []).map((p) => (
+                  {filteredPortofolio.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                       <td className="p-3.5">
                         <div className="font-bold text-slate-900">{p.namaSiswa}</div>
@@ -719,7 +776,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
                         <button
                           onClick={() =>
                             exportSingleStudentExamPDF(p, {
-                              sekolahNama: db.config.schoolName,
+                              sekolahNama: db.config.namaSekolah,
                               guruNama: currentTeacher?.nama || 'Dra. Hj. Ceu Nining Ratnaningsih, M.M.',
                               rombel: 'X MIPA 1',
                             })
@@ -979,7 +1036,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
                 <button
                   onClick={() => {
                     const examPortfolios = (db.portofolioSiswaList || []).filter((s) => s.ujianId === selectedUjian.id);
-                    exportBatchExamResultsPDF(selectedUjian, examPortfolios, db.config.schoolName);
+                    exportBatchExamResultsPDF(selectedUjian, examPortfolios, db.config.namaSekolah);
                   }}
                   className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
                   title="Ekspor Seluruh Nilai Ujian Ini ke PDF"
@@ -1036,7 +1093,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
                           <button
                             onClick={() =>
                               exportSingleStudentExamPDF(item, {
-                                sekolahNama: db.config.schoolName,
+                                sekolahNama: db.config.namaSekolah,
                                 guruNama: currentTeacher?.nama || 'Dra. Hj. Ceu Nining Ratnaningsih, M.M.',
                                 rombel: 'X MIPA 1',
                               })

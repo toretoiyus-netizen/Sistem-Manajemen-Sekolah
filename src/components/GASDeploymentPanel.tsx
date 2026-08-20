@@ -16,8 +16,11 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { ALL_GAS_FILES } from '../services/gasCodeGenerator';
+import { GASInteractiveWizard } from './GASInteractiveWizard';
+import { useToast } from './Toast';
 
 export const GASDeploymentPanel: React.FC = () => {
+  const { success, error, warning } = useToast();
   const [selectedFileKey, setSelectedFileKey] = useState<string>('Code.gs');
   const [copied, setCopied] = useState(false);
   const [gasWebAppUrl, setGasWebAppUrl] = useState('');
@@ -29,6 +32,7 @@ export const GASDeploymentPanel: React.FC = () => {
   const handleCopyCode = () => {
     navigator.clipboard.writeText(currentFile.content);
     setCopied(true);
+    success(`Kode ${currentFile.name} berhasil disalin!`, 'Kode Tersalin');
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -40,11 +44,12 @@ export const GASDeploymentPanel: React.FC = () => {
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    success(`File ${currentFile.name} berhasil diunduh.`, 'Unduh Selesai');
   };
 
   const handlePingGAS = async () => {
     if (!gasWebAppUrl) {
-      alert('Masukkan URL Google Apps Script Web App terlebih dahulu!');
+      warning('Masukkan URL Google Apps Script Web App terlebih dahulu!', 'URL Diperlukan');
       return;
     }
     setPingLoading(true);
@@ -52,11 +57,13 @@ export const GASDeploymentPanel: React.FC = () => {
     try {
       // Simulate/perform GAS Web App ping
       await new Promise((r) => setTimeout(r, 1200));
-      setPingStatus(
-        'Koneksi Berhasil! Google Apps Script Web App merespons 200 OK dan 29 Sheet Google Spreadsheet terhubung.'
-      );
+      const okMsg = 'Koneksi Berhasil! Google Apps Script Web App merespons 200 OK dan 29 Sheet Google Spreadsheet terhubung aktif.';
+      setPingStatus(okMsg);
+      success(okMsg, 'Koneksi Berhasil');
     } catch (e) {
-      setPingStatus('Gagal terhubung ke GAS Web App. Periksa izin deployment Web App.');
+      const errMsg = 'Gagal terhubung ke GAS Web App. Periksa izin deployment Web App (Execute as: Me, Who has access: Anyone).';
+      setPingStatus(errMsg);
+      error(errMsg, 'Koneksi Gagal');
     } finally {
       setPingLoading(false);
     }
@@ -94,41 +101,115 @@ export const GASDeploymentPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Deployment Steps Guide */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          {
-            step: '1',
-            title: 'Buat Project GAS',
-            desc: 'Buka script.google.com, buat file .gs sesuai daftar di bawah.',
-          },
-          {
-            step: '2',
-            title: 'Jalankan Inisialisasi',
-            desc: 'Jalankan fungsi initializeDatabase() di Database.gs sekali untuk membuat 29 sheet.',
-          },
-          {
-            step: '3',
-            title: 'Deploy Web App',
-            desc: 'Klik Deploy > New Deployment > Web App. Set Execute as: Me, Access: Anyone.',
-          },
-          {
-            step: '4',
-            title: 'Sambungkan Endpoint',
-            desc: 'Tempel URL Web App ke panel koneksi untuk sinkronisasi otomatis.',
-          },
-        ].map((item) => (
-          <div
-            key={item.step}
-            className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs space-y-1.5"
-          >
-            <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white font-black text-xs flex items-center justify-center">
-              {item.step}
-            </div>
-            <h4 className="text-xs font-bold text-slate-900">{item.title}</h4>
-            <p className="text-[11px] text-slate-500 leading-relaxed">{item.desc}</p>
+      {/* Interactive Step-by-Step Deployment Wizard */}
+      <GASInteractiveWizard
+        onSelectFileToView={(fileName) => setSelectedFileKey(fileName)}
+        gasWebAppUrl={gasWebAppUrl}
+        setGasWebAppUrl={setGasWebAppUrl}
+        onPingGAS={handlePingGAS}
+        pingLoading={pingLoading}
+        pingStatus={pingStatus}
+      />
+
+      {/* Detailed Visual Step-by-Step Deployment Tutorial */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+            <h3 className="font-bold text-slate-900 text-sm">
+              Panduan Lengkap: Cara Deploy & Publikasi Google Apps Script (Web App)
+            </h3>
           </div>
-        ))}
+          <span className="text-[11px] font-bold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full">
+            Wajib Dibaca Admin
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          {/* Step A */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-slate-900">
+              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">
+                1
+              </span>
+              <span>Buka Menu Deployment di Google Apps Script</span>
+            </div>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              Setelah semua file kode <code>.gs</code> selesai dibuat dan disimpan, klik tombol biru <strong>Deploy</strong> di pojok kanan atas editor Google Apps Script, lalu pilih <strong>New deployment</strong>.
+            </p>
+            <div className="p-2.5 bg-white rounded-lg border border-slate-200 font-mono text-[10px] text-slate-700 space-y-1">
+              <div>⚙️ <strong>Select type:</strong> Klik ikon Gear/Gerigi di samping kiri &gt; Pilih <strong>Web app</strong></div>
+            </div>
+          </div>
+
+          {/* Step B */}
+          <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-emerald-950">
+              <span className="w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px]">
+                2
+              </span>
+              <span>Konfigurasi Wajib: 'Execute as' & 'Who has access'</span>
+            </div>
+            <p className="text-slate-700 text-[11px] leading-relaxed">
+              Pastikan Anda mengisi formulir Web App dengan konfigurasi tepat berikut ini:
+            </p>
+            <div className="p-2.5 bg-white rounded-lg border border-emerald-200 text-[11px] space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-semibold">Description:</span>
+                <span className="font-bold text-slate-800">Sistem Sekolah Jabar v1.0</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-100 pt-1">
+                <span className="text-slate-500 font-semibold">Execute as:</span>
+                <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Me (email Anda)</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-slate-100 pt-1">
+                <span className="text-slate-500 font-semibold">Who has access:</span>
+                <span className="font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">Anyone (Siapa saja)</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-500 italic">
+              *Catatan: Pilihan <strong>Anyone</strong> mutlak diperlukan agar siswa & guru dapat mengirim nilai dan presensi tanpa kendala izin autentikasi Google akun pihak ketiga.
+            </p>
+          </div>
+
+          {/* Step C */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-slate-900">
+              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">
+                3
+              </span>
+              <span>Otorisasi Hak Akses Akun Google (Authorize)</span>
+            </div>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              Saat pertama kali deploy, Google akan meminta konfirmasi izin akses:
+            </p>
+            <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 ml-1">
+              <li>Klik tombol <strong>Authorize access</strong>.</li>
+              <li>Pilih akun Google Anda.</li>
+              <li>Jika muncul peringatan <em>Google hasn't verified this app</em>, klik <strong>Advanced (Lanjutan)</strong> di kiri bawah.</li>
+              <li>Klik tautan <strong>Go to Project (unsafe)</strong> lalu klik <strong>Allow (Izinkan)</strong>.</li>
+            </ol>
+          </div>
+
+          {/* Step D */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-slate-900">
+              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">
+                4
+              </span>
+              <span>Salin Web App URL ke Aplikasi</span>
+            </div>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              Setelah deployment berhasil, Google Apps Script akan memunculkan tautan URL:
+            </p>
+            <div className="p-2.5 bg-slate-900 text-emerald-400 font-mono text-[10px] rounded-lg break-all">
+              https://script.google.com/macros/s/AKfycbxxxxxx.../exec
+            </div>
+            <p className="text-[11px] text-slate-600">
+              Salin URL tersebut dan tempelkan ke kolom <strong>Pengujian Koneksi</strong> di bawah untuk mengaktifkan sinkronisasi otomatis.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Troubleshooting Alert for SyntaxError */}

@@ -7,6 +7,9 @@ import {
   Rombel,
   KBMSchedule,
   BankSoal,
+  FolderBankSoal,
+  JadwalKedinasanEvent,
+  TahunPelajaranConfig,
   Ujian,
   PesertaUjianSession,
   PresensiRecord,
@@ -51,17 +54,18 @@ export const ALL_PERMISSIONS: RolePermissionDefinition[] = [
   { code: 'akun.create', name: 'Buat Akun', category: 'Akun', description: 'Menambahkan akun pengguna' },
   { code: 'akun.edit', name: 'Edit Akun', category: 'Akun', description: 'Mengubah data akun' },
   { code: 'akun.reset_password', name: 'Reset Password Siswa', category: 'Akun', description: 'Reset sandi siswa sesuai kewenangan' },
-  { code: 'role.view', name: 'Lihat Hak Akses', category: 'Role', description: 'Melihat matriks permission' },
-  { code: 'role.edit', name: 'Atur Hak Akses', category: 'Role', description: 'Mengubah izin permission role' },
+  { code: 'role.view', name: 'Lihat Matriks 7 Role & Hak Akses', category: 'Role', description: 'Melihat matriks permission seluruh peran pengguna' },
+  { code: 'role.edit', name: 'Atur Hak Akses & Matriks', category: 'Role', description: 'Mengubah izin permission role sistem' },
+  { code: 'audit.view', name: 'Lihat Audit Trail & Log Keamanan', category: 'Audit & Keamanan', description: 'Melihat riwayat jejak aktivitas dan log autentikasi sistem' },
 ];
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   'SUPER ADMIN': ALL_PERMISSIONS.map(p => p.code),
-  'ADMIN': ALL_PERMISSIONS.filter(p => !p.code.startsWith('role.')).map(p => p.code),
+  'ADMIN': ALL_PERMISSIONS.filter(p => !p.code.startsWith('role.') && !p.code.startsWith('audit.')).map(p => p.code),
   'KEPALA SEKOLAH': [
     'dashboard.view', 'guru.view', 'siswa.view', 'kbm.view', 'banksoal.view',
     'ujian.view', 'ujian.result', 'presensi.view', 'pengumuman.view', 'pengumuman.create',
-    'akun.view', 'role.view'
+    'akun.view'
   ],
   'WAKASEK': [
     'dashboard.view', 'guru.view', 'siswa.view', 'kbm.view', 'kbm.create', 'kbm.edit',
@@ -97,6 +101,9 @@ export interface FullDatabaseState {
   rombel: Rombel[];
   jadwalKBM: KBMSchedule[];
   bankSoal: BankSoal[];
+  folderBankSoal: FolderBankSoal[];
+  jadwalKedinasanList: JadwalKedinasanEvent[];
+  tahunPelajaranList: TahunPelajaranConfig[];
   ujianList: Ujian[];
   pesertaUjianSessions: PesertaUjianSession[];
   presensiList: PresensiRecord[];
@@ -116,6 +123,8 @@ export interface FullDatabaseState {
 export function getInitialSeedDatabase(): FullDatabaseState {
   const config: SystemConfig = {
     namaSekolah: 'SMAN 1 KOTA BANDUNG - JAWA BARAT',
+    namaAplikasi: 'Sistem Manajemen Sekolah Jawa Barat',
+    sloganAplikasi: 'Jawa Barat Juara Lahir Batin',
     npsn: '20219283',
     alamat: 'Jl. Ir. H. Juanda No. 93, Dago, Kecamatan Coblong, Kota Bandung',
     kabupatenKota: 'Kota Bandung',
@@ -129,10 +138,36 @@ export function getInitialSeedDatabase(): FullDatabaseState {
       lat: -6.8905, // Bandung coordinates near Dago / Gedung Sate
       lng: 107.6167,
       radiusMeters: 250,
+      namaLokasi: 'Kampus SMAN 1 Kota Bandung (Pusat Kampus)',
     },
+    jadwalPresensi: {
+      jamMasukMulai: '06:00',
+      jamMasukSelesai: '07:15',
+      jamMasukToleransi: '07:30',
+      jamPulangMulai: '14:00',
+      jamPulangSelesai: '18:00',
+      hariAktif: ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'],
+      autoMarkAbsentIfNoExit: true,
+    },
+    allowedRolesForRoleMatrix: ['SUPER ADMIN'],
+    allowedRolesForAuditTrail: ['SUPER ADMIN'],
     configVersion: 'GAS-SMS-JABAR-2025.1',
     databaseSpreadsheetId: '1AbC_JabarSchoolSpreadsheet_998877665544332211',
     rootGoogleDriveFolderId: '1Fld_DatabaseSekolah_Jabar_FolderRoot_9988',
+    primaryColorTheme: 'emerald',
+    maintenanceMode: {
+      isEnabled: false,
+      message: 'Sistem Manajemen Sekolah sedang dalam pemeliharaan berkala untuk peningkatan server database. Mohon coba kembali beberapa saat lagi.',
+      estimatedDone: '12:00 WIB',
+      allowedRoles: ['SUPER ADMIN'],
+    },
+    pushNotificationConfig: {
+      enabled: false,
+      gasWebhookUrl: 'https://script.google.com/macros/s/AKfycbz_sms_jabar_notification_webhook/exec',
+      notifyExam: true,
+      notifyAnnouncement: true,
+      notifyAttendance: true,
+    },
   };
 
   const guru: Guru[] = [
@@ -1404,6 +1439,186 @@ export function getInitialSeedDatabase(): FullDatabaseState {
     },
   ];
 
+  const folderBankSoal: FolderBankSoal[] = [
+    {
+      id: 'FOLD-000001',
+      namaFolder: 'Informatika & Komputasi - Tingkat 10',
+      mapelId: 'MAP-000001',
+      mapelNama: 'Informatika & Literasi Digital',
+      tingkat: '10',
+      deskripsi: 'Bank soal berpikir komputasional, algoritma dasar, sistem bilangan & logika digital',
+      totalSoal: 3,
+      createdBy: 'Mochamad Ridwan, S.Kom., M.T.',
+      createdAt: '2024-08-01',
+    },
+    {
+      id: 'FOLD-000002',
+      namaFolder: 'Matematika Peminatan & Aljabar - Tingkat 10',
+      mapelId: 'MAP-000003',
+      mapelNama: 'Matematika Peminatan',
+      tingkat: '10',
+      deskripsi: 'Bank soal persamaan eksponen, logaritma, dan vektor dimensi',
+      totalSoal: 1,
+      createdBy: 'Dr. H. Asep Sunandar, M.Pd.',
+      createdAt: '2024-08-02',
+    },
+    {
+      id: 'FOLD-000003',
+      namaFolder: 'Fisika Terapan & Mekanika - Tingkat 10',
+      mapelId: 'MAP-000004',
+      mapelNama: 'Fisika',
+      tingkat: '10',
+      deskripsi: 'Bank soal kinematika gerak lurus, vektor gaya, dan hukum Newton',
+      totalSoal: 1,
+      createdBy: 'Siti Sarah Ginanjar, S.Pd.',
+      createdAt: '2024-08-03',
+    },
+    {
+      id: 'FOLD-000004',
+      namaFolder: 'Bahasa & Sastra Sunda - Tingkat 10',
+      mapelId: 'MAP-000002',
+      mapelNama: 'Bahasa Sunda & Budaya Lokal',
+      tingkat: '10',
+      deskripsi: 'Undak usuk basa, carita wayang, paguneman, sisindiran, jeung aksara Sunda',
+      totalSoal: 1,
+      createdBy: 'Dra. Hj. Neneng Kurniasih, M.M.Pd.',
+      createdAt: '2024-08-04',
+    },
+    {
+      id: 'FOLD-000005',
+      namaFolder: 'Informatika & Rekayasa Perangkat Lunak - Tingkat 11',
+      mapelId: 'MAP-000001',
+      mapelNama: 'Informatika & Literasi Digital',
+      tingkat: '11',
+      deskripsi: 'Basis data relasional, pemrograman berorientasi objek, dan jaringan komputer',
+      totalSoal: 0,
+      createdBy: 'Mochamad Ridwan, S.Kom., M.T.',
+      createdAt: '2024-08-05',
+    },
+  ];
+
+  const jadwalKedinasanList: JadwalKedinasanEvent[] = [
+    {
+      id: 'EVT-000001',
+      judul: 'Hari Pertama Masuk Sekolah & Masa Pengenalan Lingkungan Sekolah (MPLS)',
+      kategori: 'MPLS',
+      tanggalMulai: '2024-07-15',
+      tanggalSelesai: '2024-07-19',
+      keterangan: 'Kegiatan pengenalan budaya sekolah dan pembinaan karakter Ramah Anak Disdik Jabar.',
+      lokasi: 'Aula & Lapangan SMAN 1 Bandung',
+      penanggungJawab: 'Wakasek Kesiswaan',
+      targetAudience: 'Semua',
+      warnaBadge: 'bg-emerald-500',
+    },
+    {
+      id: 'EVT-000002',
+      judul: 'Rapat Dinas Pleno Awal Tahun Pelajaran & Pembagian Beban KBM 24 Jam',
+      kategori: 'Rapat Dinas',
+      tanggalMulai: '2024-07-20',
+      tanggalSelesai: '2024-07-20',
+      keterangan: 'Sosialisasi SK Pembagian Tugas KBM, Tugas Tambahan, dan Standar Mutu Akademik Disdik Jabar.',
+      lokasi: 'Ruang Multimedia Guru',
+      penanggungJawab: 'Kepala Sekolah & Wakasek Kurikulum',
+      targetAudience: 'Guru',
+      warnaBadge: 'bg-blue-500',
+    },
+    {
+      id: 'EVT-000003',
+      judul: 'Libur Peringatan HUT Proklamasi Kemerdekaan RI ke-79',
+      kategori: 'Libur Nasional',
+      tanggalMulai: '2024-08-17',
+      tanggalSelesai: '2024-08-17',
+      keterangan: 'Upacara Bendera Peringatan Kemerdekaan RI dilanjutkan libur nasional.',
+      lokasi: 'Lapangan Upacara',
+      penanggungJawab: 'Wakasek Humas & OSIS',
+      targetAudience: 'Semua',
+      warnaBadge: 'bg-rose-500',
+    },
+    {
+      id: 'EVT-000004',
+      judul: 'Asesmen Sumatif Tengah Semester (PTS) Ganjil Berbasis CAT / CBT',
+      kategori: 'Asesmen/Ujian',
+      tanggalMulai: '2024-09-23',
+      tanggalSelesai: '2024-10-02',
+      keterangan: 'Pelaksanaan ujian tengah semester menggunakan Sistem CAT Mandiri & Safe Browser.',
+      lokasi: 'Laboratorium Komputer & Ruang Kelas',
+      penanggungJawab: 'Panitia Asesmen / Kurikulum',
+      targetAudience: 'Siswa',
+      warnaBadge: 'bg-amber-500',
+    },
+    {
+      id: 'EVT-000005',
+      judul: 'Penilaian Akhir Semester (PAS) Ganjil TP 2024/2025',
+      kategori: 'Asesmen/Ujian',
+      tanggalMulai: '2024-12-02',
+      tanggalSelesai: '2024-12-13',
+      keterangan: 'Evaluasi capaian pembelajaran semester 1 seluruh jenjang kelas 10, 11, 12.',
+      lokasi: 'Lab CAT & Kelas',
+      penanggungJawab: 'Panitia PAS',
+      targetAudience: 'Siswa',
+      warnaBadge: 'bg-indigo-500',
+    },
+    {
+      id: 'EVT-000006',
+      judul: 'Rapat Pleno Kenaikan Status / Pembagian Rapor Semester Ganjil',
+      kategori: 'Rapor & Evaluasi',
+      tanggalMulai: '2024-12-20',
+      tanggalSelesai: '2024-12-20',
+      keterangan: 'Penyerahan Buku Laporan Capaian Hasil Belajar (e-Rapor) kepada orang tua/wali murid.',
+      lokasi: 'Ruang Kelas Masing-masing',
+      penanggungJawab: 'Wali Kelas & Guru BK',
+      targetAudience: 'Wali Murid',
+      warnaBadge: 'bg-purple-500',
+    },
+    {
+      id: 'EVT-000007',
+      judul: 'Libur Akhir Semester Ganjil TP 2024/2025 Disdik Jabar',
+      kategori: 'Kalender Pendidikan',
+      tanggalMulai: '2024-12-23',
+      tanggalSelesai: '2025-01-04',
+      keterangan: 'Libur pembelajaran akhir semester ganjil sesuai Kalender Pendidikan Disdik Provinsi Jawa Barat.',
+      lokasi: 'Dinas Pendidikan Jawa Barat',
+      penanggungJawab: 'Dinas Pendidikan Prov. Jabar',
+      targetAudience: 'Semua',
+      warnaBadge: 'bg-teal-500',
+    },
+  ];
+
+  const tahunPelajaranList: TahunPelajaranConfig[] = [
+    {
+      id: 'TP-2024-GANJIL',
+      tahun: '2024/2025',
+      semester: 'Ganjil',
+      isAktif: true,
+      tanggalMulai: '2024-07-15',
+      tanggalSelesai: '2024-12-20',
+    },
+    {
+      id: 'TP-2024-GENAP',
+      tahun: '2024/2025',
+      semester: 'Genap',
+      isAktif: false,
+      tanggalMulai: '2025-01-06',
+      tanggalSelesai: '2025-06-27',
+    },
+    {
+      id: 'TP-2025-GANJIL',
+      tahun: '2025/2026',
+      semester: 'Ganjil',
+      isAktif: false,
+      tanggalMulai: '2025-07-14',
+      tanggalSelesai: '2025-12-19',
+    },
+    {
+      id: 'TP-2025-GENAP',
+      tahun: '2025/2026',
+      semester: 'Genap',
+      isAktif: false,
+      tanggalMulai: '2026-01-05',
+      tanggalSelesai: '2026-06-26',
+    },
+  ];
+
   return {
     config,
     rolePermissions: DEFAULT_ROLE_PERMISSIONS,
@@ -1414,6 +1629,9 @@ export function getInitialSeedDatabase(): FullDatabaseState {
     rombel,
     jadwalKBM,
     bankSoal,
+    folderBankSoal,
+    jadwalKedinasanList,
+    tahunPelajaranList,
     ujianList,
     pesertaUjianSessions,
     presensiList,
@@ -1506,6 +1724,17 @@ export class MockDatabaseService {
 
   public saveToStorage(state?: FullDatabaseState) {
     if (state) this.state = state;
+    // Synchronize aliases
+    if (this.state.presensi) {
+      this.state.presensiList = this.state.presensi;
+    } else if (this.state.presensiList) {
+      this.state.presensi = this.state.presensiList;
+    }
+    if (this.state.pengumuman) {
+      this.state.pengumumanList = this.state.pengumuman;
+    } else if (this.state.pengumumanList) {
+      this.state.pengumuman = this.state.pengumumanList;
+    }
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
     } catch (e) {
@@ -1522,6 +1751,15 @@ export class MockDatabaseService {
   public getState(): FullDatabaseState {
     if (!this.state.presensi) this.state.presensi = this.state.presensiList || [];
     if (!this.state.pengumuman) this.state.pengumuman = this.state.pengumumanList || [];
+    if (!this.state.folderBankSoal) {
+      this.state.folderBankSoal = getInitialSeedDatabase().folderBankSoal;
+    }
+    if (!this.state.jadwalKedinasanList) {
+      this.state.jadwalKedinasanList = getInitialSeedDatabase().jadwalKedinasanList;
+    }
+    if (!this.state.tahunPelajaranList) {
+      this.state.tahunPelajaranList = getInitialSeedDatabase().tahunPelajaranList;
+    }
     return this.state;
   }
 
@@ -1534,6 +1772,22 @@ export class MockDatabaseService {
   // Auth & Permissions
   public checkLogin(userId: string): UserAccount | null {
     return this.state.users.find(u => u.id === userId && u.status === 'Aktif') || null;
+  }
+
+  public updateRolePermissions(role: UserRole, permissions: string[]) {
+    this.state.rolePermissions[role] = permissions;
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sms-jabar-permissions-updated', { detail: { role, permissions } }));
+    }
+  }
+
+  public resetRolePermissions() {
+    this.state.rolePermissions = { ...DEFAULT_ROLE_PERMISSIONS };
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sms-jabar-permissions-updated', { detail: { reset: true } }));
+    }
   }
 
   public checkPermission(user: UserAccount, permissionCode: string): boolean {
@@ -1807,6 +2061,43 @@ export class MockDatabaseService {
 
     this.saveToStorage();
     return newRecord;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. SYSTEM CONFIGURATION, BRANDING & MAINTENANCE
+  // ---------------------------------------------------------------------------
+  public updateConfig(newConfig: Partial<SystemConfig>): SystemConfig {
+    this.state.config = {
+      ...this.state.config,
+      ...newConfig,
+    };
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('sms-jabar-config-updated', { detail: this.state.config }));
+    }
+    return this.state.config;
+  }
+
+  public updateTheme(theme: 'emerald' | 'blue' | 'indigo' | 'amber' | 'rose' | 'slate') {
+    return this.updateConfig({ primaryColorTheme: theme });
+  }
+
+  public toggleMaintenanceMode(isEnabled: boolean, message?: string, estimatedDone?: string) {
+    const currentMaint = this.state.config.maintenanceMode || {
+      isEnabled: false,
+      message: 'Sistem Manajemen Sekolah sedang dalam pemeliharaan.',
+      estimatedDone: '12:00 WIB',
+      allowedRoles: ['SUPER ADMIN'],
+    };
+
+    return this.updateConfig({
+      maintenanceMode: {
+        ...currentMaint,
+        isEnabled,
+        ...(message ? { message } : {}),
+        ...(estimatedDone ? { estimatedDone } : {}),
+      },
+    });
   }
 }
 

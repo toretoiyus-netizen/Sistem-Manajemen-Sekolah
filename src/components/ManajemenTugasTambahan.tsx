@@ -18,9 +18,12 @@ import {
   AlertCircle,
   HelpCircle,
   BookOpen,
+  Download,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { UserAccount, MasterTugasTambahan, PenugasanTugasTambahan, Guru } from '../types';
 import { dbService } from '../services/mockDatabase';
+import { exportToF4LandscapePDF } from '../utils/pdfExportUtil';
 
 interface ManajemenTugasTambahanProps {
   currentUser: UserAccount;
@@ -145,6 +148,75 @@ export const ManajemenTugasTambahan: React.FC<ManajemenTugasTambahanProps> = ({ 
     }
   };
 
+  const handleExportWorkloadPDF = () => {
+    const head = [
+      ['No', 'NIP', 'Nama Guru & Gelar', 'Mata Pelajaran', 'Jam KBM', 'Tugas Tambahan', 'Jam Tugas', 'Total Jam', 'Beban 24 Jam', 'Status Bentrok']
+    ];
+
+    const body = filteredTeachers.map((item, idx) => {
+      const tugasNames = item.duties.map((t) => t.namaTugas).join(', ') || item.guru.tugasTambahan || '-';
+      return [
+        idx + 1,
+        item.guru.nip,
+        `${item.guru.nama}${item.guru.gelar ? ', ' + item.guru.gelar : ''}`,
+        item.guru.mataPelajaranUtama,
+        `${item.kbmHours} Jam`,
+        tugasNames,
+        `${item.tugasTambahanHours} Jam`,
+        `${item.totalHours} Jam`,
+        item.statusBeban,
+        item.hasConflict ? 'Bentrok' : 'Aman',
+      ];
+    });
+
+    exportToF4LandscapePDF({
+      title: 'Rekapitulasi Ekuivalensi Beban Kerja & Jam Mengajar Guru',
+      subtitle: `Sesuai Permendikbud No. 15 Tahun 2018 (Beban Minimum 24 Jam) • Tahun Ajaran 2024/2025`,
+      fileName: `Rekap_Beban_Kerja_Guru_F4_Landscape.pdf`,
+      metaInfo: [
+        { label: 'Filter Status', value: filterStatus },
+        { label: 'Total Guru', value: `${filteredTeachers.length} Orang` },
+      ],
+      head: head,
+      body: body,
+      signatureRole: 'Kepala Sekolah',
+      signatureName: 'Dr. H. Bambang Sutrisno, M.Pd.',
+      signatureNip: '196803151992031004',
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 26, halign: 'center' },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 42 },
+        4: { cellWidth: 18, halign: 'center' },
+        5: { cellWidth: 52 },
+        6: { cellWidth: 18, halign: 'center' },
+        7: { cellWidth: 20, halign: 'center' },
+        8: { cellWidth: 26, halign: 'center' },
+        9: { cellWidth: 22, halign: 'center' },
+      },
+    });
+  };
+
+  const handleExportWorkloadExcel = () => {
+    const data = filteredTeachers.map((item, idx) => ({
+      No: idx + 1,
+      NIP: item.guru.nip,
+      'Nama Guru': `${item.guru.nama}${item.guru.gelar ? ', ' + item.guru.gelar : ''}`,
+      'Mata Pelajaran Utama': item.guru.mataPelajaranUtama,
+      'Jam KBM Tatap Muka': item.kbmHours,
+      'Tugas Tambahan': item.duties.map((t) => t.namaTugas).join(', ') || item.guru.tugasTambahan || '-',
+      'Ekuivalensi Jam Tugas': item.tugasTambahanHours,
+      'Total Akumulasi Jam': item.totalHours,
+      'Status Beban (24 Jam)': item.statusBeban,
+      'Status Bentrok Jadwal': item.hasConflict ? 'Ada Bentrok' : 'Normal',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Beban_Kerja_Guru');
+    XLSX.writeFile(workbook, `Rekap_Beban_Kerja_Guru_2024.xlsx`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -247,6 +319,24 @@ export const ManajemenTugasTambahan: React.FC<ManajemenTugasTambahanProps> = ({ 
         {/* Search & Status Filter (for beban_guru) */}
         {activeSubTab === 'beban_guru' && (
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleExportWorkloadPDF}
+              className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title="Cetak PDF Format Landscape F4 (Folio) Presisi"
+            >
+              <FileText className="w-3.5 h-3.5 text-rose-600" />
+              <span>Cetak PDF (F4 Landscape)</span>
+            </button>
+
+            <button
+              onClick={handleExportWorkloadExcel}
+              className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title="Ekspor ke Excel (.xlsx)"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Excel (.xlsx)</span>
+            </button>
+
             <div className="relative">
               <input
                 type="text"

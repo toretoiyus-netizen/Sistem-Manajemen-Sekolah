@@ -13,12 +13,16 @@ import {
   Sparkles,
   ExternalLink,
   Camera,
+  Calendar,
 } from 'lucide-react';
 import { UserAccount, UserRole } from '../types';
 import { UserProfileModal } from './UserProfileModal';
+import { KalenderPendidikanModal } from './KalenderPendidikanModal';
+import { dbService } from '../services/mockDatabase';
 
 interface NavbarProps {
   currentUser: UserAccount;
+  canSimulateRole?: boolean;
   activeTab?: string;
   activeView?: string;
   onRoleChange?: (role: UserRole) => void;
@@ -32,6 +36,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
+  canSimulateRole = false,
   activeTab,
   activeView,
   onRoleChange,
@@ -41,9 +46,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   onUpdateCurrentUser,
   onLogout,
 }) => {
+  const db = dbService.getState();
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isKalenderModalOpen, setIsKalenderModalOpen] = useState(false);
+  const [currentTpDisplay, setCurrentTpDisplay] = useState({
+    tahun: db.config.tahunPelajaran,
+    semester: db.config.semester,
+  });
   const [profileModalTab, setProfileModalTab] = useState<'profil' | 'password'>('profil');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -138,9 +149,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <h2 className="font-semibold text-base sm:text-lg text-slate-800 italic">
               {getTitle()}
             </h2>
-            <span className="hidden sm:inline-flex text-[11px] bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-100 font-medium">
-              TP 2024/2025 - Ganjil
-            </span>
+            <button
+              onClick={() => setIsKalenderModalOpen(true)}
+              className="hidden sm:inline-flex items-center gap-1.5 text-[11px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-200 font-bold transition-all shadow-2xs cursor-pointer group"
+              title="Buka Kalender Pendidikan & Pengaturan Tahun Pelajaran"
+            >
+              <Calendar className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+              <span>TP {currentTpDisplay.tahun} - {currentTpDisplay.semester}</span>
+              <ChevronDown className="w-3 h-3 text-emerald-600/70" />
+            </button>
           </div>
         </div>
 
@@ -158,41 +175,50 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
           </div>
 
-          {/* Role Simulator Pill Dropdown */}
-          <div className="relative" ref={roleDropdownRef}>
-            <button
-              onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-full text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
-              title="Simulasi Hak Akses Role"
-            >
-              <Shield className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline text-slate-500 font-normal">Role:</span>
-              <span className="text-emerald-800 font-bold max-w-[90px] truncate">{currentUser.role}</span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
-            </button>
+          {/* Role Simulator Pill (Active ONLY for Super Admin) */}
+          {canSimulateRole ? (
+            <div className="relative" ref={roleDropdownRef}>
+              <button
+                onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50/80 hover:bg-amber-100/80 border border-amber-200 rounded-full text-xs font-semibold text-amber-900 transition-colors cursor-pointer"
+                title="Simulasi Hak Akses Role (Khusus Super Admin)"
+              >
+                <Shield className="w-3.5 h-3.5 text-amber-600" />
+                <span className="hidden sm:inline text-amber-700 font-normal">Simulasi Role:</span>
+                <span className="text-amber-900 font-black max-w-[100px] truncate">{currentUser.role}</span>
+                <ChevronDown className="w-3 h-3 text-amber-600" />
+              </button>
 
-            {roleDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-slate-200 shadow-xl py-2 z-50 animate-in zoom-in-95 duration-100">
-                <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Ubah Simulasi Role:
+              {roleDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl border border-slate-200 shadow-xl py-2 z-50 animate-in zoom-in-95 duration-100">
+                  <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Ubah Simulasi Role:
+                  </div>
+                  <div className="max-h-60 overflow-y-auto py-1">
+                    {allRoles.map((role) => (
+                      <button
+                        key={role}
+                        onClick={() => handleRoleSelect(role)}
+                        className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-slate-50 transition-colors ${
+                          currentUser.role === role ? 'font-bold text-emerald-700 bg-emerald-50/50' : 'text-slate-700'
+                        }`}
+                      >
+                        <span>{role}</span>
+                        {currentUser.role === role && <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="max-h-60 overflow-y-auto py-1">
-                  {allRoles.map((role) => (
-                    <button
-                      key={role}
-                      onClick={() => handleRoleSelect(role)}
-                      className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-slate-50 transition-colors ${
-                        currentUser.role === role ? 'font-bold text-emerald-700 bg-emerald-50/50' : 'text-slate-700'
-                      }`}
-                    >
-                      <span>{role}</span>
-                      {currentUser.role === role && <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          ) : (
+            /* Static Role Badge for all accounts below Super Admin */
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-xs font-semibold text-slate-700 shadow-2xs">
+              <Shield className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline text-slate-400 font-normal">Peran:</span>
+              <span className="text-slate-900 font-bold max-w-[110px] truncate">{currentUser.role}</span>
+            </div>
+          )}
 
           {/* Notifications Icon */}
           <button className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-full transition-colors relative cursor-pointer hidden sm:block">
@@ -317,6 +343,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         onClose={() => setIsProfileModalOpen(false)}
         onUpdateCurrentUser={(updated) => {
           if (onUpdateCurrentUser) onUpdateCurrentUser(updated);
+        }}
+      />
+
+      {/* Kalender Pendidikan & Jadwal Kedinasan Modal */}
+      <KalenderPendidikanModal
+        isOpen={isKalenderModalOpen}
+        onClose={() => setIsKalenderModalOpen(false)}
+        currentUser={currentUser}
+        onTahunPelajaranChange={(tp, sem) => {
+          setCurrentTpDisplay({ tahun: tp, semester: sem });
         }}
       />
     </>

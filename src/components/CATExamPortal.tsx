@@ -22,6 +22,7 @@ import confetti from 'canvas-confetti';
 import { Ujian, BankSoal, PesertaUjianSession } from '../types';
 import { dbService } from '../services/mockDatabase';
 import { QuestionMediaRenderer } from './QuestionMediaRenderer';
+import { useToast } from './Toast';
 
 interface CATExamPortalProps {
   onBackToApp: () => void;
@@ -33,6 +34,7 @@ export const CATExamPortal: React.FC<CATExamPortalProps> = ({
   preSelectedExamId,
 }) => {
   const db = dbService.getState();
+  const { success, info, error } = useToast();
 
   // Screen Stage: 'login' | 'exam' | 'finish'
   const [stage, setStage] = useState<'login' | 'exam' | 'finish'>('login');
@@ -235,6 +237,11 @@ export const CATExamPortal: React.FC<CATExamPortalProps> = ({
       setShowConfirmFinishModal(false);
       setStage('finish');
 
+      success(
+        `Ujian CAT berhasil diserahkan! Skor Anda: ${finalCalculated} (${isPassed ? 'Tuntas/Lulus' : 'Belum Tuntas'}).`,
+        'Asesmen Berhasil Disimpan'
+      );
+
       if (isPassed) {
         confetti({
           particleCount: 100,
@@ -243,7 +250,7 @@ export const CATExamPortal: React.FC<CATExamPortalProps> = ({
         });
       }
     },
-    [activeUjian, questions, answers]
+    [activeUjian, questions, answers, success]
   );
 
   const formatTimer = (seconds: number) => {

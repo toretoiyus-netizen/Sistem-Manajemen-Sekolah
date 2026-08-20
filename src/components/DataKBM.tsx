@@ -15,9 +15,13 @@ import {
   GraduationCap,
   Clock,
   Building,
+  FileText,
+  Download,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { KBMSchedule, MataPelajaran, Rombel, UserAccount } from '../types';
 import { dbService } from '../services/mockDatabase';
+import { exportToF4LandscapePDF } from '../utils/pdfExportUtil';
 
 interface DataKBMProps {
   currentUser: UserAccount;
@@ -26,6 +30,62 @@ interface DataKBMProps {
 export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
   const db = dbService.getState();
   const [activeTab, setActiveTab] = useState<'jadwal' | 'mapel' | 'rombel' | 'guruwali'>('jadwal');
+
+  const role = currentUser.role;
+  const isStudent = role === 'SISWA';
+  const isWaliKelas = role === 'WALI KELAS';
+  const isGuruWali = role === 'GURU WALI';
+  const isGuruMapel = role === 'GURU MAPEL';
+  const isExecutive = role === 'SUPER ADMIN' || role === 'ADMIN' || role === 'KEPALA SEKOLAH' || role === 'WAKASEK';
+
+  // Find linked student if logged in as SISWA
+  const currentStudent = isStudent
+    ? db.siswa.find(
+        (s) =>
+          s.id === currentUser.referenceId ||
+          s.nisn === currentUser.username ||
+          s.nis === currentUser.username ||
+          s.namaLengkap.toLowerCase() === currentUser.nama.toLowerCase()
+      ) || db.siswa[0]
+    : null;
+
+  // Find linked teacher if teacher role
+  const currentGuru = !isStudent
+    ? db.guru.find(
+        (g) =>
+          g.id === currentUser.referenceId ||
+          g.nip === currentUser.username ||
+          g.nama.toLowerCase() === currentUser.nama.toLowerCase()
+      ) || (isWaliKelas || isGuruWali ? db.guru.find(g => g.tugasTambahan === (isWaliKelas ? 'Wali Kelas' : 'Guru Wali')) : db.guru[0])
+    : null;
+
+  // Rombel assigned to Wali Kelas
+  const assignedWaliRombels = isWaliKelas && currentGuru
+    ? db.rombel.filter((r) => r.waliKelasId === currentGuru.id || r.namaRombel.includes('X MIPA 1'))
+    : [];
+
+  // Rombels containing mentored students for Guru Wali
+  const binaanStudents = isGuruWali && currentGuru
+    ? db.siswa.filter((s) => s.guruWaliId === currentGuru.id || s.guruWaliNama?.toLowerCase().includes(currentGuru.nama.toLowerCase()))
+    : [];
+  const guruWaliRombelNames = Array.from(new Set(binaanStudents.map((s) => s.rombel)));
+  const assignedGuruWaliRombels = isGuruWali
+    ? db.rombel.filter((r) => guruWaliRombelNames.includes(r.namaRombel))
+    : [];
+
+  // Student's own rombel
+  const studentRombel = isStudent && currentStudent
+    ? db.rombel.find((r) => r.namaRombel === currentStudent.rombel || r.id === currentStudent.rombelId) || db.rombel[0]
+    : null;
+
+  // Visible rombels list according to role
+  const visibleRombels = isStudent
+    ? (studentRombel ? [studentRombel] : [db.rombel[0]])
+    : isWaliKelas
+    ? (assignedWaliRombels.length > 0 ? assignedWaliRombels : [db.rombel[0]])
+    : isGuruWali
+    ? (assignedGuruWaliRombels.length > 0 ? assignedGuruWaliRombels : db.rombel.slice(0, 2))
+    : db.rombel;
 
   // Filter for Jadwal
   const [selectedHari, setSelectedHari] = useState<string>('Semua');
@@ -39,7 +99,7 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
     jamKe: 1,
     jamMulai: '07:30',
     jamSelesai: '08:50',
-    rombelId: db.rombel[0]?.id || 'ROM-000001',
+    rombelId: visibleRombels[0]?.id || db.rombel[0]?.id || 'ROM-000001',
     mapelId: db.mapel[0]?.id || 'MAP-000001',
     guruId: db.guru[0]?.id || 'GURU-000001',
     ruang: 'R. 101 (Gedung Kujang)',
@@ -146,11 +206,119 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
     setIsRombelModalOpen(false);
   };
 
-  const filteredJadwal = db.jadwalKBM.filter((j) => {
+  if (isGuruMapel) {
+    return (
+      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm text-center max-w-xl mx-auto space-y-4">
+        <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto border border-amber-200">
+          <BookOpen className="w-6 h-6" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-slate-900">Manajemen KBM Dibatasi</h3>
+          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+            Menu Manajemen Kegiatan Belajar Mengajar (KBM) tidak ditampilkan untuk akun Guru Mata Pelajaran. Pengelolaan kurikulum dan rombel dikelola langsung oleh <strong>Wakasek Kurikulum</strong> dan <strong>Wali Kelas</strong>.
+          </p>
+        </div>
+        <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-500 border border-slate-200 text-left">
+          💡 <em>Akses Anda difokuskan pada penyusunan <strong>Bank Soal</strong>, pembuatan <strong>Paket Ujian CAT</strong>, dan rekap nilai peserta didik.</em>
+        </div>
+      </div>
+    );
+  }
+
+  const baseJadwal = db.jadwalKBM.filter((j) => {
+    if (isStudent && studentRombel) {
+      return j.rombelId === studentRombel.id;
+    }
+    if (isWaliKelas && assignedWaliRombels.length > 0) {
+      return assignedWaliRombels.some((r) => r.id === j.rombelId);
+    }
+    if (isGuruWali && assignedGuruWaliRombels.length > 0) {
+      return assignedGuruWaliRombels.some((r) => r.id === j.rombelId);
+    }
+    return true;
+  });
+
+  const filteredJadwal = baseJadwal.filter((j) => {
     const matchHari = selectedHari === 'Semua' || j.hari === selectedHari;
     const matchRombel = selectedRombelFilter === 'Semua' || j.rombelId === selectedRombelFilter;
     return matchHari && matchRombel;
   });
+
+  const handleExportSchedulePDF = () => {
+    const head = [
+      ['No', 'Hari', 'Jam Ke', 'Waktu KBM', 'Rombel', 'Mata Pelajaran', 'Guru Pengampu', 'Ruang Kelas', 'Keterangan']
+    ];
+
+    const body = filteredJadwal.map((s, idx) => {
+      const rombel = db.rombel.find((r) => r.id === s.rombelId);
+      const mapel = db.mapel.find((m) => m.id === s.mapelId);
+      const guru = db.guru.find((g) => g.id === s.guruId);
+
+      return [
+        idx + 1,
+        s.hari,
+        `Jam ke-${s.jamKe}`,
+        `${s.jamMulai} - ${s.jamSelesai}`,
+        rombel?.namaRombel || '-',
+        mapel?.namaMapel || '-',
+        guru?.nama || '-',
+        s.ruang,
+        s.keterangan || 'KBM Reguler',
+      ];
+    });
+
+    exportToF4LandscapePDF({
+      title: 'Jadwal Pelajaran Kegiatan Belajar Mengajar (KBM)',
+      subtitle: `Tahun Ajaran 2024/2025 • Filter Hari: ${selectedHari} • Rombel: ${selectedRombelFilter === 'Semua' ? 'Semua Rombel' : (db.rombel.find(r => r.id === selectedRombelFilter)?.namaRombel || selectedRombelFilter)}`,
+      fileName: `Jadwal_KBM_DisdikJabar_F4_Landscape.pdf`,
+      metaInfo: [
+        { label: 'Filter Hari', value: selectedHari },
+        { label: 'Total Sesi KBM', value: `${filteredJadwal.length} Sesi Terjadwal` },
+      ],
+      head: head,
+      body: body,
+      signatureRole: 'Wakasek Kurikulum',
+      signatureName: 'Dr. H. Bambang Sutrisno, M.Pd.',
+      signatureNip: '196803151992031004',
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 22, halign: 'center' },
+        2: { cellWidth: 20, halign: 'center' },
+        3: { cellWidth: 32, halign: 'center' },
+        4: { cellWidth: 32, halign: 'center' },
+        5: { cellWidth: 55 },
+        6: { cellWidth: 50 },
+        7: { cellWidth: 40 },
+        8: { cellWidth: 45 },
+      },
+    });
+  };
+
+  const handleExportScheduleExcel = () => {
+    const data = filteredJadwal.map((s, idx) => {
+      const rombel = db.rombel.find((r) => r.id === s.rombelId);
+      const mapel = db.mapel.find((m) => m.id === s.mapelId);
+      const guru = db.guru.find((g) => g.id === s.guruId);
+
+      return {
+        No: idx + 1,
+        Hari: s.hari,
+        'Jam Ke': s.jamKe,
+        'Jam Mulai': s.jamMulai,
+        'Jam Selesai': s.jamSelesai,
+        Rombel: rombel?.namaRombel || '-',
+        'Mata Pelajaran': mapel?.namaMapel || '-',
+        'Guru Pengampu': guru?.nama || '-',
+        'Ruang Kelas': s.ruang,
+        Keterangan: s.keterangan || '-',
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Jadwal_KBM');
+    XLSX.writeFile(workbook, `Jadwal_KBM_${selectedHari}_2024.xlsx`);
+  };
 
   return (
     <div className="space-y-6">
@@ -252,7 +420,7 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
                   className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
                 >
                   <option value="Semua">Semua Rombel</option>
-                  {db.rombel.map((r) => (
+                  {visibleRombels.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.namaRombel}
                     </option>
@@ -261,30 +429,50 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
               </div>
             </div>
 
-            {canManageKBM && (
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => {
-                  setSelectedSchedule(null);
-                  setConflictError(null);
-                  setScheduleForm({
-                    hari: 'Senin',
-                    jamKe: 1,
-                    jamMulai: '07:30',
-                    jamSelesai: '08:50',
-                    rombelId: db.rombel[0]?.id || 'ROM-000001',
-                    mapelId: db.mapel[0]?.id || 'MAP-000001',
-                    guruId: db.guru[0]?.id || 'GURU-000001',
-                    ruang: 'R. 101 (Gedung Kujang)',
-                    keterangan: '',
-                  });
-                  setIsScheduleModalOpen(true);
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                onClick={handleExportSchedulePDF}
+                className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Cetak PDF Format Landscape F4 (Folio) Presisi"
               >
-                <Plus className="w-4 h-4" />
-                <span>Tambah Jadwal KBM</span>
+                <FileText className="w-3.5 h-3.5 text-rose-600" />
+                <span>Cetak PDF (F4 Landscape)</span>
               </button>
-            )}
+
+              <button
+                onClick={handleExportScheduleExcel}
+                className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Ekspor Jadwal ke Excel (.xlsx)"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Excel (.xlsx)</span>
+              </button>
+
+              {canManageKBM && (
+                <button
+                  onClick={() => {
+                    setSelectedSchedule(null);
+                    setConflictError(null);
+                    setScheduleForm({
+                      hari: 'Senin',
+                      jamKe: 1,
+                      jamMulai: '07:30',
+                      jamSelesai: '08:50',
+                      rombelId: db.rombel[0]?.id || 'ROM-000001',
+                      mapelId: db.mapel[0]?.id || 'MAP-000001',
+                      guruId: db.guru[0]?.id || 'GURU-000001',
+                      ruang: 'R. 101 (Gedung Kujang)',
+                      keterangan: '',
+                    });
+                    setIsScheduleModalOpen(true);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Jadwal KBM</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -406,7 +594,14 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
       {activeTab === 'rombel' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200">
-            <h3 className="text-sm font-bold text-slate-800">Rombongan Belajar (Rombel)</h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">
+                {isStudent ? 'Rombongan Belajar (Kelas Anda)' : isWaliKelas ? 'Rombel yang Anda Ampu' : 'Rombongan Belajar (Rombel)'}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isStudent ? 'Informasi kelas dan wali kelas tempat Anda terdaftar.' : 'Daftar rombel dan wali kelas pengampu.'}
+              </p>
+            </div>
             {canManageKBM && (
               <button
                 onClick={() => setIsRombelModalOpen(true)}
@@ -419,7 +614,7 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {db.rombel.map((r) => {
+            {visibleRombels.map((r) => {
               const wali = db.guru.find((g) => g.id === r.waliKelasId);
               const studentCount = db.siswa.filter((s) => s.rombel === r.namaRombel).length;
 
@@ -455,16 +650,64 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
       {/* ========================================================================= */}
       {activeTab === 'guruwali' && (
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-blue-600" />
-            <span>Matriks Penugasan Guru Wali & Binaan Siswa (Jabar Masagi)</span>
-          </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-600" />
+                <span>
+                  {isStudent
+                    ? 'Informasi Guru Wali & Wali Kelas Anda'
+                    : isGuruWali
+                    ? 'Daftar Siswa Binaan Anda (Guru Wali)'
+                    : isWaliKelas
+                    ? 'Bimbingan Siswa Kelas yang Anda Ampu'
+                    : 'Matriks Penugasan Guru Wali & Binaan Siswa (Jabar Masagi)'}
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {isStudent
+                  ? 'Berikut adalah guru pembina karakter dan wali kelas yang mendampingi Anda.'
+                  : 'Pendampingan karakter berbasis Jabar Masagi (Surti, Hati, Bukti, Bakti).'}
+              </p>
+            </div>
+          </div>
 
           <div className="space-y-4">
-            {db.guru
-              .filter((g) => g.tugasTambahan === 'Guru Wali' || g.tugasTambahan === 'Wali Kelas')
-              .map((guru) => {
-                const binaan = db.siswa.filter((s) => s.guruWaliId === guru.id);
+            {(() => {
+              let gurusToRender = db.guru.filter(
+                (g) => g.tugasTambahan === 'Guru Wali' || g.tugasTambahan === 'Wali Kelas'
+              );
+
+              if (isStudent && currentStudent) {
+                const studentWali = db.guru.find(
+                  (g) => g.id === currentStudent.waliKelasId || (studentRombel && g.id === studentRombel.waliKelasId)
+                );
+                const studentGw = db.guru.find(
+                  (g) =>
+                    g.id === currentStudent.guruWaliId ||
+                    g.nama.toLowerCase().includes((currentStudent.guruWaliNama || '').toLowerCase())
+                );
+                gurusToRender = [studentWali, studentGw].filter(Boolean) as typeof db.guru;
+                // De-duplicate
+                gurusToRender = gurusToRender.filter((v, i, a) => a.findIndex((t) => t.id === v.id) === i);
+              } else if (isGuruWali && currentGuru) {
+                gurusToRender = db.guru.filter((g) => g.id === currentGuru.id);
+              } else if (isWaliKelas && currentGuru) {
+                gurusToRender = db.guru.filter((g) => g.id === currentGuru.id);
+              }
+
+              if (gurusToRender.length === 0) {
+                return (
+                  <div className="text-center py-8 text-slate-400 text-xs">
+                    Belum ada penugasan guru wali yang terhubung.
+                  </div>
+                );
+              }
+
+              return gurusToRender.map((guru) => {
+                const binaan = isStudent && currentStudent
+                  ? [currentStudent]
+                  : db.siswa.filter((s) => s.guruWaliId === guru.id || (guru.tugasTambahan === 'Wali Kelas' && s.rombel === visibleRombels[0]?.namaRombel));
 
                 return (
                   <div key={guru.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50">
@@ -483,7 +726,7 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
                         </div>
                       </div>
                       <span className="text-xs bg-blue-100 text-blue-800 font-bold px-2.5 py-1 rounded-lg">
-                        {binaan.length} Siswa Binaan
+                        {isStudent ? 'Pembina Anda' : `${binaan.length} Siswa Binaan`}
                       </span>
                     </div>
 
@@ -491,16 +734,20 @@ export const DataKBM: React.FC<DataKBMProps> = ({ currentUser }) => {
                       {binaan.map((s) => (
                         <div
                           key={s.id}
-                          className="p-2 bg-white rounded-lg border border-slate-200 text-xs flex items-center justify-between"
+                          className="p-2.5 bg-white rounded-lg border border-slate-200 text-xs flex items-center justify-between shadow-2xs"
                         >
-                          <span className="font-medium text-slate-800">{s.namaLengkap}</span>
-                          <span className="font-mono text-[10px] text-slate-400">{s.rombel}</span>
+                          <div>
+                            <span className="font-semibold text-slate-800 block">{s.namaLengkap}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">NISN: {s.nisn}</span>
+                          </div>
+                          <span className="font-mono text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">{s.rombel}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 );
-              })}
+              });
+            })()}
           </div>
         </div>
       )}
