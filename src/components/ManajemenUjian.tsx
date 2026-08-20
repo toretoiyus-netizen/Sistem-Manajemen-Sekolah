@@ -95,6 +95,10 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isPrintTokenModalOpen, setIsPrintTokenModalOpen] = useState(false);
+  const [isClassTokenPrintModalOpen, setIsClassTokenPrintModalOpen] = useState(false);
+  const [tokenTargetRombel, setTokenTargetRombel] = useState<string>('X MIPA 1');
+  const [tokenTargetSesi, setTokenTargetSesi] = useState<string>('Sesi 1 (07:30 - 09:30)');
+  const [tokenTargetHari, setTokenTargetHari] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [selectedUjian, setSelectedUjian] = useState<Ujian | null>(null);
 
@@ -329,6 +333,17 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
             <MonitorCheck className="w-4 h-4 text-slate-950" />
             <span>{isStudent ? 'Masuk Ruang CAT' : 'Simulasi Ruang Ujian CAT'}</span>
           </button>
+
+          {!isStudent && (
+            <button
+              onClick={() => setIsClassTokenPrintModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+              title="Cetak Slip Token & Peserta Ujian berdasarkan Rombel, Hari dan Sesi"
+            >
+              <Printer className="w-4 h-4 text-emerald-200" />
+              <span>Cetak Token (Kelas & Sesi)</span>
+            </button>
+          )}
 
           {!isStudent && (
             <button
@@ -960,7 +975,7 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
                   PEMERINTAH DAERAH PROVINSI JAWA BARAT • DINAS PENDIDIKAN
                 </div>
                 <div className="text-sm font-black text-slate-900 mt-0.5">
-                  SMAN 1 KOTA BANDUNG (CAT ASESMEN TERPADU)
+                  {db.config.namaSekolah || 'SMAN 1 KOTA BANDUNG'} (CAT ASESMEN TERPADU)
                 </div>
                 <div className="text-[10px] text-slate-500 font-medium">
                   Jl. Ir. H. Juanda No. 93, Dago, Kecamatan Coblong, Kota Bandung
@@ -1284,6 +1299,188 @@ export const ManajemenUjian: React.FC<ManajemenUjianProps> = ({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CETAK PEMBAGIAN TOKEN PER KELAS, SESI & HARI (Requirement #6) */}
+      {/* ========================================================================= */}
+      {isClassTokenPrintModalOpen && (() => {
+        const targetStudents = db.siswa.filter(
+          (s) => tokenTargetRombel === 'Semua' || s.rombel === tokenTargetRombel
+        );
+        const activeExam = selectedUjian || db.ujianList[0];
+        const sysCfg = dbService.getSystemConfig();
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 my-6 animate-in fade-in zoom-in-95 duration-150 text-xs print:p-0 print:border-none print:shadow-none print:my-0">
+              {/* Modal Header Controls (Hidden when printing) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 print:hidden">
+                <div className="flex items-center gap-2">
+                  <Printer className="w-6 h-6 text-emerald-600" />
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      Cetak Pembagian Token Ujian (Per Kelas, Sesi & Hari)
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Format slip cetak peserta ujian CAT terstandar untuk {sysCfg.namaSekolah}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Cetak Kartu Sesi (Print)</span>
+                  </button>
+                  <button
+                    onClick={() => setIsClassTokenPrintModalOpen(false)}
+                    className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Controls Bar (Hidden when printing) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-4 p-3 bg-slate-50 rounded-2xl border border-slate-200 print:hidden">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Rombel / Kelas:</label>
+                  <select
+                    value={tokenTargetRombel}
+                    onChange={(e) => setTokenTargetRombel(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="Semua">Semua Rombel</option>
+                    {db.rombel.map((r) => (
+                      <option key={r.id} value={r.namaRombel}>
+                        {r.namaRombel}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Hari & Tanggal Ujian:</label>
+                  <input
+                    type="date"
+                    value={tokenTargetHari}
+                    onChange={(e) => setTokenTargetHari(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Sesi Ujian:</label>
+                  <select
+                    value={tokenTargetSesi}
+                    onChange={(e) => setTokenTargetSesi(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="Sesi 1 (07:30 - 09:30)">Sesi 1 (07:30 - 09:30)</option>
+                    <option value="Sesi 2 (10:00 - 12:00)">Sesi 2 (10:00 - 12:00)</option>
+                    <option value="Sesi 3 (13:00 - 15:00)">Sesi 3 (13:00 - 15:00)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Printable Grid of Student Token Slips */}
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 print:max-h-none print:overflow-visible print:pr-0">
+                <div className="text-right text-[11px] text-slate-500 font-mono print:hidden">
+                  Total {targetStudents.length} Slip Peserta Siap Dicetak
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:grid-cols-2 print:gap-4">
+                  {targetStudents.map((siswa, idx) => (
+                    <div
+                      key={siswa.id}
+                      className="border-2 border-slate-800 rounded-2xl p-4 bg-slate-50/50 print:bg-white flex flex-col justify-between space-y-3 break-inside-avoid"
+                    >
+                      {/* Header */}
+                      <div className="border-b-2 border-slate-800 pb-2 text-center">
+                        <div className="text-[8px] font-black tracking-widest text-slate-600 uppercase">
+                          PEMERINTAH PROVINSI JAWA BARAT • DINAS PENDIDIKAN
+                        </div>
+                        <div className="text-xs font-black text-slate-900 uppercase">
+                          {sysCfg.namaSekolah}
+                        </div>
+                        <div className="text-[9px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                          SLIP TOKEN & KARTU LOGIN PESERTA UJIAN CAT
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="grid grid-cols-3 gap-2 items-center text-[11px]">
+                        <div className="col-span-2 space-y-1">
+                          <div>
+                            <span className="text-[9px] font-bold text-slate-400 block uppercase">
+                              Nama Peserta Ujian
+                            </span>
+                            <span className="font-extrabold text-slate-900 text-xs block">
+                              {siswa.namaLengkap}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-1 text-[10px]">
+                            <div>
+                              <span className="text-slate-400 block font-bold text-[8px]">NISN / Username</span>
+                              <span className="font-mono font-bold text-slate-800">{siswa.nisn}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block font-bold text-[8px]">Rombel</span>
+                              <span className="font-bold text-emerald-800">{siswa.rombel}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-[10px]">
+                            <span className="text-slate-400 font-bold block text-[8px]">Hari & Sesi Ujian</span>
+                            <span className="font-semibold text-slate-800">
+                              {tokenTargetHari} • {tokenTargetSesi}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* QR Code & Token Box */}
+                        <div className="text-center p-2 bg-amber-50 border border-amber-300 rounded-xl space-y-1">
+                          <QRCodeSVG
+                            value={activeExam?.currentToken || 'JBR-ABCD'}
+                            size={56}
+                            level="M"
+                            className="mx-auto"
+                          />
+                          <div className="text-[8px] font-bold text-amber-900 uppercase">TOKEN SESI</div>
+                          <div className="font-mono font-black text-xs text-amber-950 tracking-wider">
+                            {activeExam?.currentToken || 'JBR-ABCD'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="border-t border-slate-300 pt-2 flex items-center justify-between text-[8px] text-slate-500 font-mono">
+                        <div>Ruang: Lab Komputer 1</div>
+                        <div>Password Default: siswa123</div>
+                        <div>Paraf Pengawas: _________</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="mt-6 pt-3 border-t border-slate-200 flex justify-end print:hidden">
+                <button
+                  onClick={() => setIsClassTokenPrintModalOpen(false)}
+                  className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 cursor-pointer"
+                >
+                  Tutup Window Cetak
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

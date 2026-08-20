@@ -337,7 +337,26 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
       ? Math.round((studentHadirCount / studentTotalPresensi) * 100)
       : 100;
 
-  // Submit Presensi Hadir / Usulan Izin-Sakit
+  // Auto-detect Absen Masuk vs Absen Pulang based on current time & schedule
+  useEffect(() => {
+    const currentHour = new Date().getHours();
+    const sysCfg = dbService.getSystemConfig();
+    const jamMasukEnd = sysCfg.jadwalPresensi?.jamMasukSelesai || '08:00';
+    const jamMasukEndHour = parseInt(jamMasukEnd.split(':')[0]) || 11;
+
+    if (currentHour < jamMasukEndHour + 1) {
+      setJenisPresensi('Masuk');
+    } else {
+      setJenisPresensi('Pulang');
+    }
+  }, []);
+
+  // Force real device GPS detection for students on mount
+  useEffect(() => {
+    if (isStudent) {
+      handleRealGpsDetection();
+    }
+  }, [isStudent]);
   const handleStudentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentStudent) return;
@@ -469,6 +488,7 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
   // =========================================================================
   const [rejectModalId, setRejectModalId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [, setRefreshTrigger] = useState(0);
 
   const handleApproveSubmission = (submission: IzinSakitSubmission) => {
     // 1. Update status in izinSakitList
@@ -476,26 +496,44 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
     submission.disetujuiOleh = currentUser.nama;
     submission.catatan = `Disetujui pada ${new Date().toLocaleTimeString('id-ID')}`;
 
-    // 2. Automatically record in official presensi database
-    const officialPresensi: PresensiRecord = {
-      id: dbService.generateId('PRS'),
-      tanggal: submission.tanggalMulai,
-      siswaId: submission.siswaId,
-      namaSiswa: submission.namaSiswa,
-      nisn: submission.nisn,
-      rombelId: db.rombel.find((r) => r.namaRombel === submission.rombelNama)?.id || 'ROM-000001',
-      rombelNama: submission.rombelNama,
-      status: submission.kategori,
-      keterangan: `Disetujui Wali Kelas (${currentUser.nama}): ${submission.alasan}`,
-      metode: 'Mandiri Siswa (GPS & Selfie)',
-      waktuPresensi: new Date().toLocaleTimeString('id-ID'),
-      lampiranSurat: submission.lampiranFoto,
-    };
+    // 2. Automatically record in official presensi database for all dates in range
+    const start = new Date(submission.tanggalMulai);
+    const end = new Date(submission.tanggalSelesai);
+    const curr = new Date(start);
 
-    db.presensi.unshift(officialPresensi);
+    while (curr <= end) {
+      const dateStr = curr.toISOString().split('T')[0];
+      const existing = db.presensi.find(
+        (p) => p.siswaId === submission.siswaId && p.tanggal === dateStr
+      );
+
+      if (!existing) {
+        const officialPresensi: PresensiRecord = {
+          id: dbService.generateId('PRS'),
+          tanggal: dateStr,
+          siswaId: submission.siswaId,
+          namaSiswa: submission.namaSiswa,
+          nisn: submission.nisn,
+          rombelId: db.rombel.find((r) => r.namaRombel === submission.rombelNama)?.id || 'ROM-000001',
+          rombelNama: submission.rombelNama,
+          status: submission.kategori,
+          keterangan: `Disetujui (${currentUser.nama}): ${submission.alasan}`,
+          metode: 'Mandiri Siswa (GPS & Selfie)',
+          waktuPresensi: new Date().toLocaleTimeString('id-ID'),
+          lampiranSurat: submission.lampiranFoto,
+        };
+        db.presensi.unshift(officialPresensi);
+      } else {
+        existing.status = submission.kategori;
+        existing.keterangan = `Disetujui (${currentUser.nama}): ${submission.alasan}`;
+      }
+      curr.setDate(curr.getDate() + 1);
+    }
+
     dbService.saveToStorage(db);
     playBeepSound(1046, 0.1);
     alert(`Usulan ${submission.kategori} atas nama ${submission.namaSiswa} berhasil DISETUJUI dan dicatat dalam rekapitulasi kehadiran resmi.`);
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   const handleRejectSubmission = (submissionId: string) => {
@@ -508,6 +546,7 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
       setRejectModalId(null);
       setRejectionReason('');
       alert(`Usulan telah DITOLAK. Status diperbarui.`);
+      setRefreshTrigger((prev) => prev + 1);
     }
   };
 
@@ -1020,41 +1059,21 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
                 </div>
               </div>
 
-              {/* TIPE ABSENSI: MASUK VS PULANG (WAJIB SISWA) */}
+              {/* TIPE ABSENSI: AUTOMATICALLY DETERMINED (MASUK VS PULANG) */}
               {studentSelfStatus === 'Hadir' && (
-                <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                <div className="p-3 bg-emerald-50/80 border border-emerald-300 rounded-xl space-y-1.5">
                   <div className="text-xs font-bold text-emerald-950 flex items-center justify-between">
-                    <span>Pilih Sesi Presensi Mandiri *</span>
-                    <span className="text-[10px] text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded font-mono font-semibold">
-                      Siswa Wajib Absen Masuk & Pulang
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-emerald-600" />
+                      <span>Sesi Presensi Otomatis Jam Kerja:</span>
+                    </span>
+                    <span className="text-[10px] text-emerald-900 bg-emerald-200 border border-emerald-300 px-2.5 py-0.5 rounded-full font-mono font-bold">
+                      {jenisPresensi === 'Masuk' ? 'Sesi 1: ABSEN MASUK' : 'Sesi 2: ABSEN PULANG'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setJenisPresensi('Masuk')}
-                      className={`py-2.5 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        jenisPresensi === 'Masuk'
-                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
-                      }`}
-                    >
-                      <Clock className="w-4 h-4" />
-                      <span>1. Absen Masuk (Pagi)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setJenisPresensi('Pulang')}
-                      className={`py-2.5 px-3 rounded-lg text-xs font-bold border transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        jenisPresensi === 'Pulang'
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
-                      }`}
-                    >
-                      <Clock className="w-4 h-4" />
-                      <span>2. Absen Pulang (Sore)</span>
-                    </button>
-                  </div>
+                  <p className="text-[11px] text-emerald-800">
+                    Sistem otomatis menentukan jenis presensi berdasarkan jam server dan jadwal Super Admin.
+                  </p>
                 </div>
               )}
 
@@ -1136,48 +1155,21 @@ export const PresensiSiswa: React.FC<PresensiSiswaProps> = ({ currentUser }) => 
                       </div>
                     )}
 
-                    {/* Geolocation Simulation Mode Selector for Testing */}
+                    {/* Real Physical GPS Lock Indicator */}
                     <div className="pt-2 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                      <span className="text-slate-500 font-medium flex items-center gap-1">
-                        <Compass className="w-3.5 h-3.5 text-slate-400" />
-                        Uji Coba Lokasi (Simulator Presensi):
+                      <span className="text-slate-600 font-bold flex items-center gap-1.5">
+                        <Compass className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Validasi GPS Nyata Perangkat (Lock Geofencing Super Admin)</span>
                       </span>
-                      <div className="inline-flex rounded-lg bg-white/80 p-0.5 border border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() => handleGpsModeChange('inside')}
-                          className={`px-2 py-1 rounded font-bold transition-all cursor-pointer ${
-                            gpsSimMode === 'inside'
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          🏫 Di Sekolah (12m - Valid)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleGpsModeChange('outside')}
-                          className={`px-2 py-1 rounded font-bold transition-all cursor-pointer ${
-                            gpsSimMode === 'outside'
-                              ? 'bg-rose-600 text-white shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          🏠 Di Luar Radius (3.6km - Ditolak)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleGpsModeChange('real')}
-                          disabled={isDetectingGps}
-                          className={`px-2 py-1 rounded font-bold transition-all cursor-pointer ${
-                            gpsSimMode === 'real'
-                              ? 'bg-blue-600 text-white shadow-xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          {isDetectingGps ? 'Mendeteksi...' : '📍 GPS Nyata Perangkat'}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRealGpsDetection}
+                        disabled={isDetectingGps}
+                        className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isDetectingGps ? 'animate-spin' : ''}`} />
+                        <span>{isDetectingGps ? 'Memperbarui GPS...' : 'Pindai Ulang GPS Fisik'}</span>
+                      </button>
                     </div>
                   </div>
 

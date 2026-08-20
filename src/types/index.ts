@@ -131,6 +131,8 @@ export interface MataPelajaran {
   kodeMapel: string;
   namaMapel: string;
   kelompok: 'Umum' | 'Kejuruan / Peminatan' | 'Muatan Lokal (Bahasa Sunda)' | 'Pilihan';
+  tingkat?: string;
+  jamPerMinggu?: number;
   status: 'Aktif' | 'Nonaktif';
   guruPengampuId?: string[];
 }
@@ -142,6 +144,8 @@ export interface Rombel {
   jurusan: string; // e.g. "MIPA", "IPS", "Teknik Informatika", "Akuntansi", "Umum"
   tahunPelajaran: string; // e.g. "2024/2025"
   waliKelasId: string; // ID Guru
+  waliKelasNama?: string;
+  jumlahSiswa?: number;
   guruWaliIds?: string[];
   status: 'Aktif' | 'Nonaktif';
 }
@@ -406,6 +410,9 @@ export interface UserProfileData {
 
 export interface SystemConfig {
   namaSekolah: string;
+  alamatSekolah?: string;
+  namaKepalaSekolah?: string;
+  nipKepalaSekolah?: string;
   namaAplikasi?: string;
   sloganAplikasi?: string;
   npsn: string;

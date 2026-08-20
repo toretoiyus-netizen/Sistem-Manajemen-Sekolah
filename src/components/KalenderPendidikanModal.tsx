@@ -379,17 +379,19 @@ export const KalenderPendidikanModal: React.FC<KalenderPendidikanModalProps> = (
               Agenda & Kegiatan ({filteredEvents.length})
             </button>
 
-            <button
-              onClick={() => setActiveSubTab('pengaturan_tp')}
-              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
-                activeSubTab === 'pengaturan_tp'
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Pengaturan Tahun Pelajaran
-            </button>
+            {currentUser.role === 'SUPER ADMIN' && (
+              <button
+                onClick={() => setActiveSubTab('pengaturan_tp')}
+                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                  activeSubTab === 'pengaturan_tp'
+                    ? 'bg-emerald-700 text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Pengaturan Tahun Pelajaran
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -609,8 +611,16 @@ export const KalenderPendidikanModal: React.FC<KalenderPendidikanModalProps> = (
                 </div>
               )}
             </>
+          ) : currentUser.role !== 'SUPER ADMIN' ? (
+            <div className="p-8 text-center bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 space-y-2">
+              <AlertCircle className="w-8 h-8 text-amber-600 mx-auto" />
+              <h4 className="font-bold text-sm">Akses Dibatasi</h4>
+              <p className="text-xs text-amber-800">
+                Pengaturan Tahun Pelajaran dan Semester aktif hanya dapat dikelola oleh akun dengan role <strong>SUPER ADMIN</strong>.
+              </p>
+            </div>
           ) : (
-            /* Tab 2: Pengaturan Tahun Pelajaran & Semester */
+            /* Tab 2: Pengaturan Tahun Pelajaran & Semester (Super Admin Only) */
             <div className="space-y-6">
               <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />

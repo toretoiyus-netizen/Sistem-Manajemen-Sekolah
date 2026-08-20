@@ -51,6 +51,9 @@ export const DataMurid: React.FC<DataMuridProps> = ({
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [isPrintCardsModalOpen, setIsPrintCardsModalOpen] = useState(false);
+  const [cardPrintKelas, setCardPrintKelas] = useState<string>('Semua');
+  const [cardPrintRombel, setCardPrintRombel] = useState<string>('Semua');
   const [selectedSiswa, setSelectedSiswa] = useState<Siswa | null>(null);
   const [detailTab, setDetailTab] = useState<'biodata' | 'portofolio_cat'>('biodata');
 
@@ -355,6 +358,15 @@ export const DataMurid: React.FC<DataMuridProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsPrintCardsModalOpen(true)}
+            className="bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Cetak Kartu Pelajar Kolektif dengan Logo & Nama Sekolah Dinamis"
+          >
+            <Award className="w-3.5 h-3.5 text-amber-600" />
+            <span>Cetak Kartu Pelajar</span>
+          </button>
+
           <button
             onClick={handleExportPDF}
             className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
@@ -1007,6 +1019,206 @@ export const DataMurid: React.FC<DataMuridProps> = ({
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: CETAK KARTU PELAJAR KOLEKTIF (SUPER ADMIN / ADMIN / WALIKELAS) */}
+      {/* ========================================================================= */}
+      {isPrintCardsModalOpen && (() => {
+        const printStudents = db.siswa.filter((s) => {
+          const matchKelas = cardPrintKelas === 'Semua' || s.kelas === cardPrintKelas;
+          const matchRombel = cardPrintRombel === 'Semua' || s.rombel === cardPrintRombel;
+          return matchKelas && matchRombel;
+        });
+
+        const sysConfig = dbService.getSystemConfig();
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-4xl w-full p-6 shadow-2xl border border-slate-200 my-6 animate-in fade-in zoom-in-95 duration-150 text-xs print:p-0 print:border-none print:shadow-none print:my-0">
+              {/* Modal Header Controls (Hidden when printing) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 print:hidden">
+                <div className="flex items-center gap-2">
+                  <Award className="w-6 h-6 text-amber-600" />
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Cetak Kartu Tanda Pelajar Kolektif</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Cetak sesuai tingkatan & rombel dengan Logo & Nama Sekolah ({db.config.namaSekolah})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Award className="w-4 h-4" />
+                    <span>Cetak Sekarang (Print)</span>
+                  </button>
+                  <button
+                    onClick={() => setIsPrintCardsModalOpen(false)}
+                    className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Bar inside Modal (Hidden when printing) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-4 p-3 bg-slate-50 rounded-2xl border border-slate-200 print:hidden">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Filter Tingkatan Kelas:</label>
+                  <select
+                    value={cardPrintKelas}
+                    onChange={(e) => setCardPrintKelas(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="Semua">Semua Tingkat (10, 11, 12)</option>
+                    <option value="10">Kelas 10 (X)</option>
+                    <option value="11">Kelas 11 (XI)</option>
+                    <option value="12">Kelas 12 (XII)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Filter Rombel / Kelompok Belajar:</label>
+                  <select
+                    value={cardPrintRombel}
+                    onChange={(e) => setCardPrintRombel(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-800"
+                  >
+                    <option value="Semua">Semua Rombel</option>
+                    {db.rombel.map((r) => (
+                      <option key={r.id} value={r.namaRombel}>
+                        {r.namaRombel}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Printable Grid Container */}
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 print:max-h-none print:overflow-visible print:pr-0">
+                <div className="text-right text-[11px] text-slate-500 font-mono print:hidden">
+                  Menampilkan {printStudents.length} Kartu Siap Cetak
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:grid-cols-2 print:gap-4">
+                  {printStudents.map((siswa) => (
+                    <div
+                      key={siswa.id}
+                      className="border-2 border-slate-800 rounded-2xl overflow-hidden bg-white shadow-sm flex flex-col justify-between break-inside-avoid"
+                    >
+                      {/* Card Header Header with Logo & School Name */}
+                      <div className="bg-gradient-to-r from-emerald-800 via-emerald-900 to-slate-900 text-white p-3 flex items-center gap-2.5 border-b-2 border-amber-400">
+                        <img
+                          src={db.config.logoUrl || 'https://deskdik.jabarprov.go.id/assets/img/new-disdikjabar.png'}
+                          alt="Logo Sekolah"
+                          className="w-10 h-10 object-contain bg-white/90 p-0.5 rounded-lg shrink-0 border border-amber-300"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="leading-tight">
+                          <div className="text-[9px] font-bold tracking-widest text-amber-300 uppercase">
+                            PEMERINTAH PROVINSI JAWA BARAT • DINAS PENDIDIKAN
+                          </div>
+                          <div className="text-xs font-black text-white uppercase tracking-wide">
+                            {db.config.namaSekolah}
+                          </div>
+                          <div className="text-[8px] text-slate-300">
+                            {db.config.alamatSekolah || 'Jl. Ir. H. Juanda No. 93, Kota Bandung'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Title Banner */}
+                      <div className="bg-amber-400 text-slate-950 font-black text-[10px] uppercase text-center py-0.5 tracking-widest">
+                        KARTU TANDA PELAJAR
+                      </div>
+
+                      {/* Card Content Body */}
+                      <div className="p-3.5 flex items-start gap-3">
+                        {/* Student Photo */}
+                        <div className="shrink-0 text-center space-y-1">
+                          <img
+                            src={siswa.foto}
+                            alt={siswa.namaLengkap}
+                            className="w-20 h-24 object-cover rounded-xl border-2 border-slate-800 shadow-xs"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="text-[8px] font-bold font-mono text-slate-600 bg-slate-100 px-1 py-0.5 rounded border border-slate-300">
+                            NISN: {siswa.nisn}
+                          </div>
+                        </div>
+
+                        {/* Student Attributes Table */}
+                        <div className="flex-1 space-y-1 text-[11px]">
+                          <div>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase block">Nama Lengkap</span>
+                            <span className="font-bold text-slate-950 text-xs leading-tight block">
+                              {siswa.namaLengkap}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-1 text-[10px] pt-0.5">
+                            <div>
+                              <span className="text-slate-400 block text-[8px] font-bold">NIS / NIK</span>
+                              <span className="font-semibold text-slate-800 font-mono">{siswa.nis}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[8px] font-bold">Rombel / Tingkat</span>
+                              <span className="font-bold text-emerald-800">{siswa.rombel}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-[10px] pt-0.5">
+                            <span className="text-slate-400 block text-[8px] font-bold">Tempat, Tanggal Lahir</span>
+                            <span className="font-medium text-slate-800">
+                              {siswa.tempatLahir}, {siswa.tanggalLahir}
+                            </span>
+                          </div>
+
+                          <div className="text-[9px] text-slate-600 pt-0.5 line-clamp-1">
+                            <span className="text-slate-400 font-bold">Alamat:</span> {siswa.alamat}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card Footer with Principal Signature & Barcode */}
+                      <div className="bg-slate-50 border-t border-slate-200 p-2.5 flex items-center justify-between text-[9px] text-slate-700">
+                        <div className="font-mono text-[8px] text-slate-500 space-y-0.5">
+                          <div className="font-bold tracking-widest text-slate-800">|||| | |||||| |||| | |||</div>
+                          <div>VALID S.D: 2026/2027</div>
+                        </div>
+
+                        <div className="text-right leading-tight">
+                          <div className="text-[8px] text-slate-500">{db.config.kabupatenKota || 'Bandung'}, 2024</div>
+                          <div className="font-bold text-slate-900 text-[9px]">Kepala Sekolah,</div>
+                          <div className="font-extrabold text-emerald-950 text-[10px] underline mt-3">
+                            {db.config.namaKepalaSekolah || 'Dr. H. Hendra Sukmana, M.Pd.'}
+                          </div>
+                          <div className="text-[8px] font-mono text-slate-500">
+                            NIP. {db.config.nipKepalaSekolah || '197508122002121004'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Modal Footer Controls */}
+              <div className="mt-6 pt-3 border-t border-slate-200 flex justify-end print:hidden">
+                <button
+                  onClick={() => setIsPrintCardsModalOpen(false)}
+                  className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 cursor-pointer"
+                >
+                  Tutup Window Cetak
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

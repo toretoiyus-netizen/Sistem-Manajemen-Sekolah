@@ -14,6 +14,7 @@ import { Pengumuman } from './components/Pengumuman';
 import { ManajemenAkun } from './components/ManajemenAkun';
 import { KonfigurasiSekolah } from './components/KonfigurasiSekolah';
 import { GASDeploymentPanel } from './components/GASDeploymentPanel';
+import { ModulAuditAkses } from './components/ModulAuditAkses';
 import { LoginView } from './components/LoginView';
 import { RoleType, UserAccount } from './types';
 import { dbService } from './services/mockDatabase';
@@ -319,6 +320,19 @@ export default function App() {
                   <h3 className="font-bold text-slate-800 text-base">Akses Terbatas</h3>
                   <p className="text-xs text-slate-500">Pusat Integrasi & Backend Google Apps Script (GAS) hanya dapat diakses oleh akun Super Administrator.</p>
                   <button onClick={() => setActiveTab('dashboard')} className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl">Kembali ke Beranda</button>
+                </div>
+              )
+            )}
+
+            {activeTab === 'audit_akses' && (
+              ['SUPER ADMIN', 'ADMIN'].includes(currentUser.role) ? (
+                <ModulAuditAkses currentUser={currentUser} />
+              ) : (
+                <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center space-y-3 max-w-md mx-auto">
+                  <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">✕</div>
+                  <h3 className="font-bold text-slate-800 text-base">Akses Terbatas</h3>
+                  <p className="text-xs text-slate-500">Modul Audit Akses & RBAC hanya dapat diakses oleh Super Admin dan Admin.</p>
+                  <button onClick={() => setActiveTab('dashboard')} className="px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-xl">Kembali ke Dashboard</button>
                 </div>
               )
             )}

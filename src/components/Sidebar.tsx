@@ -86,7 +86,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'tugas_tambahan',
       label: 'Tugas Tambahan & Jam Mengajar',
       icon: Briefcase,
-      show: role === 'SUPER ADMIN' || role === 'ADMIN' || role === 'KEPALA SEKOLAH' || role === 'WAKASEK',
+      show:
+        role === 'SUPER ADMIN' ||
+        role === 'ADMIN' ||
+        role === 'KEPALA SEKOLAH' ||
+        role === 'WAKASEK' ||
+        ((currentUser as any).tugasTambahan && (currentUser as any).tugasTambahan.includes('Wakasek')),
       badge: '24 Jam',
     },
     {
@@ -135,6 +140,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Code2,
       show: role === 'SUPER ADMIN',
       badge: 'Super Admin',
+    },
+    {
+      id: 'audit_akses',
+      label: 'Audit Akses & RBAC',
+      icon: ShieldCheck,
+      show: role === 'SUPER ADMIN' || role === 'ADMIN',
+      badge: 'Security',
     },
   ];
 
